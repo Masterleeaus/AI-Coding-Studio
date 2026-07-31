@@ -81,7 +81,7 @@ test('normalizes handler failures without leaking secrets', async () => {
 
 test('times out long-running handlers and aborts their signal', async () => {
   let sawAbort = false;
-  const registry = createCommandRegistry({ timeoutMs: 5 });
+  const registry = createCommandRegistry({ timeoutMs: 5, approvalVerifier: async () => true });
   registry.register({
     command: COMMANDS.TESTS_RUN,
     riskLevel: RISK_LEVELS.SAFE_EXECUTION,
@@ -138,4 +138,17 @@ test('requires a repository ID for repository-scoped commands', async () => {
   });
   assert.equal(response.ok, false);
   assert.equal(response.error.code, 'REPOSITORY_REQUIRED');
+});
+
+test('does not trust caller-provided approval grants without a host verifier', async () => {
+  const registry = createCommandRegistry();
+  registry.register({
+    command: COMMANDS.GIT_PUSH,
+    handler: async () => ({ pushed: true }),
+  });
+  const response = await registry.dispatch(request(COMMANDS.GIT_PUSH, {
+    approval: { grantedRiskLevels: [RISK_LEVELS.PUBLISH] },
+  }));
+  assert.equal(response.ok, false);
+  assert.equal(response.error.code, 'APPROVAL_REQUIRED');
 });
