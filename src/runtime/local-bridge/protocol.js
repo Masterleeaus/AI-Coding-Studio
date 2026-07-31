@@ -49,6 +49,7 @@ export const COMMANDS = Object.freeze({
 const KNOWN_COMMANDS = new Set(Object.values(COMMANDS));
 const KNOWN_RISK_LEVELS = new Set(Object.values(RISK_LEVELS));
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const SAFE_SESSION_IDENTIFIER = /^[A-Za-z0-9_-]{16,128}$/;
 const SAFE_TOKEN = /^[A-Za-z0-9_-]{32,256}$/;
 const DANGEROUS_JSON_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -119,12 +120,14 @@ function validateAuth(input) {
   if (!isPlainRecord(input)) {
     throw new BridgeContractError('INVALID_AUTH', 'auth must be a plain object.');
   }
-  const sessionId = validateIdentifier(input.sessionId, 'session_id');
+  if (typeof input.sessionId !== 'string' || !SAFE_SESSION_IDENTIFIER.test(input.sessionId)) {
+    throw new BridgeContractError('INVALID_AUTH', 'auth sessionId is invalid.');
+  }
   const clientId = validateIdentifier(input.clientId, 'client_id');
   if (typeof input.token !== 'string' || !SAFE_TOKEN.test(input.token)) {
     throw new BridgeContractError('INVALID_AUTH', 'auth token is invalid.');
   }
-  return { sessionId, clientId, token: input.token };
+  return { sessionId: input.sessionId, clientId, token: input.token };
 }
 
 export function isKnownCommand(command) {
