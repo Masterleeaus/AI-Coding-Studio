@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   APPROVAL_DECISIONS,
   RISK_LEVELS,
+  consumeApproval,
   createApprovalRecord,
   evaluateApproval,
 } from "./approval-engine.js";
@@ -71,6 +72,33 @@ describe("approval engine", () => {
       approvals: [approval],
     });
     expect(wrongTarget.decision).toBe(APPROVAL_DECISIONS.REQUIRES_APPROVAL);
+  });
+
+  it("consumes a one-shot approval and prevents reuse", () => {
+    const approval = createApprovalRecord({
+      id: "approval-1",
+      repository,
+      operation: "files.write",
+      target: "src/workflows/workflow-state.js",
+      risk: RISK_LEVELS.WRITE,
+      grantedAt: 1000,
+    });
+
+    const consumed = consumeApproval(approval, 2000);
+    expect(consumed).toMatchObject({
+      id: "approval-1",
+      status: "CONSUMED",
+      consumedAt: 2000,
+    });
+    expect(approval.status).toBe("GRANTED");
+
+    expect(evaluateApproval({
+      risk: RISK_LEVELS.WRITE,
+      repository,
+      operation: "files.write",
+      target: "src/workflows/workflow-state.js",
+      approvals: [consumed],
+    }).decision).toBe(APPROVAL_DECISIONS.REQUIRES_APPROVAL);
   });
 
   it("never auto-approves destructive or publish operations", () => {
