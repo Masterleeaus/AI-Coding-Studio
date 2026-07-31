@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -57,5 +57,23 @@ test('rejects missing paths, duplicate canonical roots and revoked repositories'
   await assert.rejects(
     () => allowlist.allow({ repositoryId: 'missing', path: join(root, 'missing') }),
     (error) => error.code === 'INVALID_REPOSITORY_PATH',
+  );
+});
+
+test('fails closed when an enrolled canonical repository root moves', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'acs-allowlist-'));
+  const repo = join(root, 'repo');
+  await mkdir(repo);
+  const allowlist = createRepositoryAllowlist({
+    store: createJsonRepositoryAllowlistStore(join(root, 'allowlist.json')),
+  });
+
+  await allowlist.load();
+  await allowlist.allow({ repositoryId: 'repo-1', path: repo });
+  await rename(repo, join(root, 'moved-repo'));
+
+  await assert.rejects(
+    () => allowlist.require('repo-1'),
+    (error) => error.code === 'REPOSITORY_PATH_CHANGED',
   );
 });
