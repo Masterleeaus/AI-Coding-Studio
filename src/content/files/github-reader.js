@@ -8,10 +8,11 @@
 
 import { unzipSync, strFromU8 } from "fflate";
 import ignore from "ignore";
+import { isSensitiveRepositoryPath } from "./repository-file-policy.js";
 
 /** Default directories to always skip */
 const SKIP_DIRS = new Set([
-  "node_modules", ".git", ".github", "dist", "build",
+  "node_modules", ".git", "dist", "build",
   ".idea", ".vscode", ".vs", "bin", "obj", "out", "target",
   "__pycache__", ".next", ".nuxt", "vendor", "Pods",
 ]);
@@ -50,7 +51,6 @@ const TEXT_EXTS = new Set([
   "yml", "yaml", "toml", "ini", "cfg", "conf",
   "csv", "tsv", "sql",
   "xml", "xsl", "xsd", "wsdl",
-  "env", "env.example", "env.local",
   "cs", "csproj", "sln", "fs", "fsx", "fsproj", "vb", "vbproj",
   "razor", "cshtml",
   "swift", "dart", "r", "R", "jl",
@@ -232,6 +232,7 @@ export async function fetchGitHubRepo(repoUrl, onStatus = () => { }, options = {
   for (const fullPath of filePaths) {
     const relativePath = stripPrefix(fullPath, rootPrefix);
     if (!relativePath || fullPath.endsWith("/")) continue; // skip dirs
+    if (isSensitiveRepositoryPath(relativePath)) continue;
 
     // Check skip directories
     const pathParts = relativePath.split("/");
