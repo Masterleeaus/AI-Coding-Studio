@@ -18,6 +18,7 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
     configUpdate: "bds:config-update",
     deepResearchConfigUpdate: "bds:deep-research-config-update",
     requestConfig: "bds:request-config",
+    networkState: "bds:network-state",
     markVoiceMessage: "bds:mark-voice-message",
     sessionData: "bds:session-data",
   };
