@@ -1,282 +1,147 @@
 # Agent 2 Local Bridge Contracts Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans for later batches. Steps use checkbox syntax for tracking.
 
-**Goal:** Build and test the transport-independent security and command-contract foundation for AI Coding Studio's future local companion.
+**Goal:** Build and verify the transport-independent security and command-contract foundation for AI Coding Studio's future local companion.
 
-**Architecture:** Add small ES modules under `src/local-bridge/` that define protocol envelopes, command/risk identifiers, approval rules, repository-path boundaries, secret redaction, bounded logging and explicit handler dispatch. No transport or process execution is introduced in this batch.
+**Architecture:** Extend the established `src/runtime` namespace with strict Local Bridge protocol, command catalogue, repository boundary, approval, redaction, logging, timeout, output-limit, and dispatch components. No transport or process execution is introduced in this batch.
 
-**Tech Stack:** JavaScript ES modules, Node `path`, Vitest, existing repository test configuration.
+**Tech Stack:** JavaScript ES modules, Node `path`, Vitest-compatible tests, isolated Node test harness.
 
-## Global Constraints
+## Global constraints
 
-- Preserve Svelte 5, Chrome, Firefox and Android support.
+- Preserve Svelte 5, Chrome, Firefox, and Android support.
 - Do not create a `.titan` directory.
 - Do not add unrestricted shell execution.
 - Do not accept shell strings from webpage content.
 - Do not bind a local service to `0.0.0.0`.
 - Do not use `Access-Control-Allow-Origin: *`.
-- Do not add broad permissions.
-- Do not commit secrets, access tokens or local SDK paths.
-- Agent branch: `agent-2/local-bridge-tooling`.
-- Base branch: `integration/local-first-repair`.
+- Do not add broad extension permissions.
+- Do not commit secrets, access tokens, or local SDK paths.
+- Branch: `agent-2/local-bridge-tooling`.
+- Base: `integration/local-first-repair`.
 
 ---
 
-### Task 1: Protocol and command catalogue
+## Task 1: Trace existing implementations
+
+**Inspected:**
+
+- `src/content/bridge.js`
+- `src/background/index.js`
+- `src/lib/local-directory-source.js`
+- `src/content/files/github-reader.js`
+- `src/core/bootstrap.js`
+- `src/core/bootstrap-enhanced.js`
+- `src/modules/features/TerminalRuntimeModule.js`
+- `src/modules/features/ToolRuntimeModule.js`
+- `src/modules/features/McpIntegrationModule.js`
+- Draft PR #2 runtime/local-bridge implementation
+
+- [x] Confirm production `main` has no operational browser-to-local transport.
+- [x] Confirm simulated terminal/tool modules are not a safe companion runtime.
+- [x] Review PR #2 as architectural evidence rather than duplicating or blindly merging it.
+- [x] Select `src/runtime/local-bridge` as the single canonical bridge namespace.
+
+## Task 2: Strict protocol and command catalogue
 
 **Files:**
-- Create: `src/local-bridge/contracts.test.js`
-- Create: `src/local-bridge/contracts.js`
 
-**Interfaces:**
-- Produces: `BRIDGE_PROTOCOL_VERSION`, `RISK_LEVELS`, `COMMANDS`, `BridgeContractError`, `validateBridgeRequest()`, `createSuccessResponse()`, `createErrorResponse()`.
+- `src/runtime/local-bridge/protocol.js`
+- `src/runtime/local-bridge/protocol.test.js`
+- `src/runtime/local-bridge/command-catalog.js`
+- `src/runtime/local-bridge/command-catalog.test.js`
 
-- [ ] **Step 1: Write failing tests**
+- [x] Define protocol version 1.
+- [x] Define the workflow's exact command and risk identifiers.
+- [x] Reject unknown commands, unsafe identifiers, non-plain objects, functions, cycles, non-finite values, and excessive nesting.
+- [x] Define stable success and error envelopes.
+- [x] Make command risk and repository scope authoritative.
+- [x] Classify `git.push` and `github.pr.create` as `PUBLISH`.
 
-Cover valid request normalization, non-object requests, unsupported versions, missing IDs, unknown commands, non-object parameters and stable success/error envelopes.
-
-- [ ] **Step 2: Run the focused test and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/contracts.test.js`
-
-Expected: FAIL because `contracts.js` does not exist.
-
-- [ ] **Step 3: Implement the minimal contract module**
-
-Define the exact approved command identifiers and reject every command not present in that catalogue. Preserve request parameters as plain JSON-compatible data; do not accept functions or prototype-bearing objects.
-
-- [ ] **Step 4: Run the focused test and verify GREEN**
-
-Run: `npm run test:unit -- src/local-bridge/contracts.test.js`
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/local-bridge/contracts.js src/local-bridge/contracts.test.js
-git commit -m "feat(bridge): define command and protocol contracts"
-```
-
-### Task 2: Repository path boundary
+## Task 3: Repository and ingestion boundaries
 
 **Files:**
-- Create: `src/local-bridge/path-policy.test.js`
-- Create: `src/local-bridge/path-policy.js`
 
-**Interfaces:**
-- Produces: `RepositoryPathError`, `resolveRepositoryPath(repositoryRoot, requestedPath, options)`.
+- `src/runtime/local-bridge/path-policy.js`
+- `src/runtime/local-bridge/path-policy.test.js`
+- `src/content/files/repository-file-policy.js`
+- `src/content/files/repository-file-policy.test.js`
+- `src/content/files/github-reader.js`
 
-- [ ] **Step 1: Write failing tests**
+- [x] Reject traversal, absolute requested paths, NUL bytes, sibling-prefix escapes, and implicit root access.
+- [x] Support Windows and POSIX canonical containment.
+- [x] Require stable repository IDs for repository-scoped commands.
+- [x] Exclude common environment, credential, package-auth, SSH, cloud, and private-key files from repository ingestion.
+- [x] Preserve `.github/workflows` for audit and CI evidence.
 
-Cover POSIX descendants, root access when allowed, `..` traversal, absolute requested paths, sibling-prefix escapes, Windows separators, Windows drive-qualified paths and empty roots.
-
-- [ ] **Step 2: Run and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/path-policy.test.js`
-
-Expected: FAIL because `path-policy.js` does not exist.
-
-- [ ] **Step 3: Implement canonical boundary checks**
-
-Use `node:path` `posix` and `win32` helpers selected from the repository root format. Reject traversal before resolution, resolve canonically, and compare with a separator-terminated root to prevent `/repo-other` prefix escapes.
-
-- [ ] **Step 4: Run and verify GREEN**
-
-Run: `npm run test:unit -- src/local-bridge/path-policy.test.js`
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/local-bridge/path-policy.js src/local-bridge/path-policy.test.js
-git commit -m "feat(bridge): enforce repository path boundaries"
-```
-
-### Task 3: Secret filtering and bounded operation log
+## Task 4: Approval, logging, and secret controls
 
 **Files:**
-- Create: `src/local-bridge/secret-filter.test.js`
-- Create: `src/local-bridge/secret-filter.js`
-- Create: `src/local-bridge/operation-log.test.js`
-- Create: `src/local-bridge/operation-log.js`
 
-**Interfaces:**
-- Produces: `redactSecrets(value)`, `createOperationLog({ maxEntries })`.
+- `src/runtime/safety/approval-policy.js`
+- `src/runtime/safety/approval-policy.test.js`
+- `src/runtime/local-bridge/secret-filter.js`
+- `src/runtime/local-bridge/secret-filter.test.js`
+- `src/runtime/local-bridge/operation-log.js`
+- `src/runtime/local-bridge/operation-log.test.js`
 
-- [ ] **Step 1: Write failing redaction tests**
+- [x] Allow `READ` implicitly.
+- [x] Require exact approval for `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE`, and `PUBLISH`.
+- [x] Prevent one risk grant from silently authorizing another.
+- [x] Redact authorization headers, API tokens, private keys, sensitive environment values, and sensitive object keys.
+- [x] Bound operation history and return immutable snapshots.
 
-Cover authorization headers, API keys, GitHub tokens, OpenAI-style tokens, private-key blocks, sensitive environment assignments, nested objects, arrays and non-sensitive values.
-
-- [ ] **Step 2: Run redaction test and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/secret-filter.test.js`
-
-Expected: FAIL because `secret-filter.js` does not exist.
-
-- [ ] **Step 3: Implement recursive conservative redaction**
-
-Replace sensitive values with `[REDACTED]`; never mutate caller-owned data.
-
-- [ ] **Step 4: Write failing operation-log tests**
-
-Cover fixed-size FIFO eviction, redacted parameters/errors, immutable returned snapshots and clear behavior.
-
-- [ ] **Step 5: Run log test and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/operation-log.test.js`
-
-Expected: FAIL because `operation-log.js` does not exist.
-
-- [ ] **Step 6: Implement bounded logging**
-
-Store only normalized metadata and redacted payloads. Return copies from `list()`.
-
-- [ ] **Step 7: Run both tests and verify GREEN**
-
-Run: `npm run test:unit -- src/local-bridge/secret-filter.test.js src/local-bridge/operation-log.test.js`
-
-Expected: PASS.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add src/local-bridge/secret-filter.js src/local-bridge/secret-filter.test.js src/local-bridge/operation-log.js src/local-bridge/operation-log.test.js
-git commit -m "feat(bridge): redact secrets in bounded operation logs"
-```
-
-### Task 4: Approval policy and command registry
+## Task 5: Explicit command registry
 
 **Files:**
-- Create: `src/local-bridge/approval-policy.test.js`
-- Create: `src/local-bridge/approval-policy.js`
-- Create: `src/local-bridge/command-registry.test.js`
-- Create: `src/local-bridge/command-registry.js`
 
-**Interfaces:**
-- Consumes: `RISK_LEVELS`, `validateBridgeRequest()`, response helpers and operation log.
-- Produces: `requiresExplicitApproval(riskLevel)`, `isRiskApproved(riskLevel, approval)`, `createCommandRegistry({ operationLog, clock })`.
+- `src/runtime/local-bridge/command-registry.js`
+- `src/runtime/local-bridge/command-registry.test.js`
 
-- [ ] **Step 1: Write failing approval tests**
+- [x] Require explicit handler registration.
+- [x] Reject duplicate, unknown, malformed, and non-function definitions.
+- [x] Reject caller-controlled risk downgrades.
+- [x] Reject repository-scoped dispatch without `repositoryId`.
+- [x] Validate parameters before handler invocation.
+- [x] Enforce abortable timeouts.
+- [x] Enforce output byte limits.
+- [x] Redact handler failures and operation records.
+- [x] Provide no default handler and no shell-string fallback.
 
-Verify `READ` is implicit, all other levels require an exact grant, malformed grants fail closed and one risk level does not authorize another.
-
-- [ ] **Step 2: Run and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/approval-policy.test.js`
-
-Expected: FAIL because `approval-policy.js` does not exist.
-
-- [ ] **Step 3: Implement fail-closed approval rules**
-
-Return booleans only; unknown risk levels throw during command registration.
-
-- [ ] **Step 4: Write failing registry tests**
-
-Cover explicit registration, duplicate rejection, unknown dispatch, malformed request rejection, missing approval, successful asynchronous dispatch, normalized handler errors and operation logging.
-
-- [ ] **Step 5: Run registry test and verify RED**
-
-Run: `npm run test:unit -- src/local-bridge/command-registry.test.js`
-
-Expected: FAIL because `command-registry.js` does not exist.
-
-- [ ] **Step 6: Implement minimal explicit dispatch**
-
-Registry definitions require `{ command, riskLevel, validateParameters, handler }`. There is no default handler and no string-to-shell conversion.
-
-- [ ] **Step 7: Run both tests and verify GREEN**
-
-Run: `npm run test:unit -- src/local-bridge/approval-policy.test.js src/local-bridge/command-registry.test.js`
-
-Expected: PASS.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add src/local-bridge/approval-policy.js src/local-bridge/approval-policy.test.js src/local-bridge/command-registry.js src/local-bridge/command-registry.test.js
-git commit -m "feat(bridge): add approved command registry"
-```
-
-### Task 5: Public API and Agent 2 report
+## Task 6: Stable exports and documentation
 
 **Files:**
-- Create: `src/local-bridge/index.js`
-- Create: `docs/agents/agent-2-local-bridge-report.md`
 
-**Interfaces:**
-- Consumes: all prior modules.
-- Produces: stable exports for future transports and adapters.
+- `src/runtime/local-bridge/index.js`
+- `src/runtime/local-bridge/index.test.js`
+- `docs/superpowers/specs/2026-07-31-agent-2-local-bridge-contracts-design.md`
+- `docs/agents/agent-2-local-bridge-report.md`
 
-- [ ] **Step 1: Add an import smoke test to `contracts.test.js`**
+- [x] Export the public bridge contract surface.
+- [x] Remove the temporary parallel `src/local-bridge` namespace.
+- [x] Align the design with the final runtime architecture.
+- [ ] Create the final Agent 2 report.
 
-Import from `./index.js` and assert the public API exposes the protocol version, command catalogue, path resolver, redactor, operation log and registry.
+## Task 7: Verification and review
 
-- [ ] **Step 2: Run and verify RED**
+- [x] Run isolated Local Bridge tests: 27 passing.
+- [x] Run repository-ingestion policy tests: 2 passing.
+- [ ] Inspect the final branch diff against `integration/local-first-repair`.
+- [ ] Inspect available GitHub Actions evidence.
+- [ ] Attempt CodeRabbit review and record any tool/auth/network blocker exactly.
+- [ ] Address confirmed review issues.
+- [ ] Open a draft PR into `integration/local-first-repair`.
+- [ ] Update coordination issue #3.
 
-Run: `npm run test:unit -- src/local-bridge/contracts.test.js`
+## Deferred implementation batches
 
-Expected: FAIL because `index.js` does not exist.
+The following are intentionally not implemented until the foundation is reviewed:
 
-- [ ] **Step 3: Create the public barrel file**
+1. repository allowlist persistence mapping stable IDs to canonical roots;
+2. authentication token and extension identity validation;
+3. Native Messaging or loopback-only authenticated transport;
+4. Git, GitHub CLI, VS Code, filesystem, search, test, build, and archive adapters;
+5. process lifecycle management, streaming/chunking, and host installation.
 
-Export only documented APIs; keep internal helpers private.
-
-- [ ] **Step 4: Document findings and limitations**
-
-Record the simulated/unreachable runtimes, absence of a real local transport, security controls implemented, tests added, unverified commands and deferred transport/adapters.
-
-- [ ] **Step 5: Run focused and full verification**
-
-Run:
-
-```bash
-npm run test:unit -- src/local-bridge
-npm run test:unit
-npm run build:chrome
-npm run build:firefox
-```
-
-Expected: all pass. If GitHub Actions cannot execute a command, record it as not verified.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/local-bridge/index.js src/local-bridge/contracts.test.js docs/agents/agent-2-local-bridge-report.md
-git commit -m "docs(agent-2): report local bridge contract foundation"
-```
-
-### Task 6: Review and draft pull request
-
-**Files:**
-- Review all files changed on `agent-2/local-bridge-tooling`.
-
-- [ ] **Step 1: Compare against `integration/local-first-repair`**
-
-Confirm no unrelated extension runtime, UI, workflow or Agent 3 approval-engine files changed.
-
-- [ ] **Step 2: Inspect GitHub Actions evidence**
-
-Record exact passing, failing and absent checks.
-
-- [ ] **Step 3: Run CodeRabbit**
-
-Review security boundaries, browser-extension trust assumptions, path handling, redaction, missing tests and architecture drift.
-
-- [ ] **Step 4: Address confirmed review issues**
-
-Apply only relevant findings with tests first. Document rejected recommendations and reasons.
-
-- [ ] **Step 5: Open a draft PR**
-
-Target: `integration/local-first-repair`.
-
-Include existing bridge assessment, architecture, components, schemas, security controls, changed files, tests, Actions evidence, CodeRabbit outcome and remaining local-runtime work.
-
-## Plan self-review
-
-- Spec coverage: the first safe contract layer is fully covered; transport and process adapters are explicitly deferred to a separate design and plan.
-- Placeholder scan: no implementation placeholders are present.
-- Type consistency: command, risk, request, response, approval, log and registry names are consistent across tasks.
+No later batch may introduce unrestricted shell execution.
