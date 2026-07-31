@@ -34,7 +34,7 @@
   "devDependencies": {
     "@playwright/test": "^1.54.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^3.2.4",
     "jsdom": "^26.1.0",
     "selenium-webdriver": "^4.46.0",
