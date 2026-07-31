@@ -2,6 +2,7 @@ import { createHmac, randomBytes as nodeRandomBytes, timingSafeEqual } from 'nod
 
 const GRANTABLE_RISK_LEVELS = new Set(['SAFE_EXECUTION', 'WRITE', 'DESTRUCTIVE', 'PUBLISH']);
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const SAFE_SESSION_ID = /^[A-Za-z0-9_-]{16,128}$/;
 
 export class ApprovalGrantError extends Error {
   constructor(code, message) {
@@ -13,7 +14,8 @@ export class ApprovalGrantError extends Error {
 
 function requireId(value, name, nullable = false) {
   if (nullable && (value === null || value === undefined || value === '')) return null;
-  if (typeof value !== 'string' || !SAFE_ID.test(value)) {
+  const pattern = name === 'sessionId' ? SAFE_SESSION_ID : SAFE_ID;
+  if (typeof value !== 'string' || !pattern.test(value)) {
     throw new ApprovalGrantError('INVALID_GRANT_INPUT', `${name} is invalid.`);
   }
   return value;
