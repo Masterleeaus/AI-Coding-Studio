@@ -186,7 +186,7 @@ export function createAgentProgressLog(options = {}) {
      * Get total count
      */
     size() {
-      return entries.size || entries.length;
+      return entries.length;
     },
 
     /**

@@ -65,7 +65,11 @@ export function createProgressRuntime(options = {}) {
       agentLog.start(context.agentName || 'system', `Start workflow: ${type}`, JSON.stringify({ repository, branch }));
 
       // Persist workflow
-      await workflowStore.save(workflow);
+      try {
+        await workflowStore.save(workflow);
+      } catch (error) {
+        throw new ProgressRuntimeError('WORKFLOW_SAVE_FAILED', `Failed to save workflow: ${error.message}`);
+      }
 
       return workflow;
     },
@@ -78,7 +82,13 @@ export function createProgressRuntime(options = {}) {
         throw new ProgressRuntimeError('WORKFLOW_STORE_UNAVAILABLE', 'WorkflowStore not configured');
       }
 
-      const workflow = await workflowStore.get(workflowId);
+      let workflow;
+      try {
+        workflow = await workflowStore.get(workflowId);
+      } catch (error) {
+        throw new ProgressRuntimeError('WORKFLOW_LOAD_FAILED', `Failed to load workflow: ${error.message}`);
+      }
+
       if (!workflow) {
         throw new ProgressRuntimeError('WORKFLOW_NOT_FOUND', `Workflow ${workflowId} not found`);
       }
@@ -104,7 +114,12 @@ export function createProgressRuntime(options = {}) {
         `${workflowId}: ${workflow.state} → ${newState}`,
       );
 
-      await workflowStore.save(updated);
+      try {
+        await workflowStore.save(updated);
+      } catch (error) {
+        throw new ProgressRuntimeError('WORKFLOW_SAVE_FAILED', `Failed to save workflow: ${error.message}`);
+      }
+
       return updated;
     },
 
@@ -113,7 +128,12 @@ export function createProgressRuntime(options = {}) {
      */
     async getWorkflow(workflowId) {
       if (!workflowStore) return null;
-      return workflowStore.get(workflowId);
+      try {
+        return await workflowStore.get(workflowId);
+      } catch (error) {
+        console.error('Failed to get workflow:', error);
+        return null;
+      }
     },
 
     /**
@@ -121,14 +141,19 @@ export function createProgressRuntime(options = {}) {
      */
     async listWorkflows(filter = null) {
       if (!workflowStore) return [];
-      const workflows = await workflowStore.list();
-      if (!filter) return workflows;
-      return workflows.filter((w) => {
-        if (filter.type && w.type !== filter.type) return false;
-        if (filter.state && w.state !== filter.state) return false;
-        if (filter.repository && w.repository !== filter.repository) return false;
-        return true;
-      });
+      try {
+        const workflows = await workflowStore.list();
+        if (!filter) return workflows;
+        return workflows.filter((w) => {
+          if (filter.type && w.type !== filter.type) return false;
+          if (filter.state && w.state !== filter.state) return false;
+          if (filter.repository && w.repository !== filter.repository) return false;
+          return true;
+        });
+      } catch (error) {
+        console.error('Failed to list workflows:', error);
+        return [];
+      }
     },
 
     // =========== Agent Progress Logging ===========
@@ -240,7 +265,15 @@ export function createProgressRuntime(options = {}) {
      * Export all progress data as JSON
      */
     async exportData() {
-      const workflows = workflowStore ? await workflowStore.list() : [];
+      let workflows = [];
+      if (workflowStore) {
+        try {
+          workflows = await workflowStore.list();
+        } catch (error) {
+          console.error('Failed to export workflows:', error);
+        }
+      }
+
       const agentEntries = agentLog.export();
       const summary = agentLog.summary();
 
