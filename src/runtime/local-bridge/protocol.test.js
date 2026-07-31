@@ -63,6 +63,14 @@ test('rejects non-JSON values and prototype-bearing parameter objects', () => {
   );
 });
 
+test('rejects prototype-polluting object keys', () => {
+  const parameters = JSON.parse('{"__proto__":{"polluted":true}}');
+  assert.throws(
+    () => validateBridgeRequest({ version: 1, requestId: 'req', command: COMMANDS.SYSTEM_HEALTH, parameters }),
+    (error) => error.code === 'INVALID_JSON_KEY',
+  );
+});
+
 test('creates stable success and error response envelopes', () => {
   assert.deepEqual(createSuccessResponse('req-1', { ok: true }), {
     version: 1,
