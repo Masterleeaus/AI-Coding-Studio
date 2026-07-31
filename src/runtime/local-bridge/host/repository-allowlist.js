@@ -184,15 +184,17 @@ export function createRepositoryAllowlist(options = {}) {
       }
 
       records.clear();
+      const canonicalPaths = new Set();
       for (const raw of data.repositories) {
         const record = validatePersistedRecord(raw);
-        if (records.has(record.repositoryId)) {
+        if (records.has(record.repositoryId) || canonicalPaths.has(record.canonicalPath)) {
           throw new RepositoryAllowlistError(
             'INVALID_ALLOWLIST_DATA',
-            'Duplicate repositoryId in allowlist.',
+            'Duplicate repository ID or canonical path in allowlist.',
           );
         }
         records.set(record.repositoryId, record);
+        canonicalPaths.add(record.canonicalPath);
       }
       loaded = true;
       return this.list();
@@ -239,6 +241,22 @@ export function createRepositoryAllowlist(options = {}) {
         throw new RepositoryAllowlistError(
           'REPOSITORY_NOT_ALLOWED',
           'Repository is not allowlisted.',
+        );
+      }
+
+      let currentCanonicalPath;
+      try {
+        currentCanonicalPath = await canonicalizePath(record.canonicalPath);
+      } catch {
+        throw new RepositoryAllowlistError(
+          'REPOSITORY_PATH_CHANGED',
+          'Allowlisted repository path is missing or no longer resolves safely.',
+        );
+      }
+      if (currentCanonicalPath !== record.canonicalPath) {
+        throw new RepositoryAllowlistError(
+          'REPOSITORY_PATH_CHANGED',
+          'Allowlisted repository path no longer resolves to its enrolled canonical path.',
         );
       }
       return clone(record);
