@@ -3,6 +3,7 @@ import {
   clearConversationBudget,
   estimateDeepSeekTokens,
   getConversationContextEstimate,
+  recordOutgoingContext,
   recordProviderRequestContext,
 } from "./context-budget.js";
 
@@ -14,10 +15,25 @@ beforeEach(() => {
   clearConversationBudget(CONVERSATION_B);
 });
 
-describe("recordProviderRequestContext", () => {
+describe("provider request context accounting", () => {
+  it("does not commit a prompt before a provider request exists", () => {
+    recordOutgoingContext({
+      conversationId: CONVERSATION_A,
+      text: "Prompt waiting for composer delivery",
+      label: "pending prompt",
+    });
+
+    expect(getConversationContextEstimate(CONVERSATION_A)).toBe(0);
+  });
+
   it("records a visible provider prompt once", () => {
     const userPrompt = "Analyze the repository architecture.";
 
+    recordOutgoingContext({
+      conversationId: CONVERSATION_A,
+      text: userPrompt,
+      label: "pending prompt",
+    });
     const estimate = recordProviderRequestContext({
       conversationId: CONVERSATION_A,
       userPrompt,
@@ -33,6 +49,11 @@ describe("recordProviderRequestContext", () => {
     const userPrompt = "Continue with step two.";
     const expectedText = `${injectedText}\n\n${userPrompt}`;
 
+    recordOutgoingContext({
+      conversationId: CONVERSATION_A,
+      text: userPrompt,
+      label: "pending prompt",
+    });
     recordProviderRequestContext({
       conversationId: CONVERSATION_A,
       injectedText,
@@ -42,6 +63,27 @@ describe("recordProviderRequestContext", () => {
 
     expect(getConversationContextEstimate(CONVERSATION_A))
       .toBe(estimateDeepSeekTokens(expectedText));
+  });
+
+  it("preserves pending attachment estimates when the prompt is confirmed", () => {
+    const userPrompt = "Analyze the attached evidence.";
+    const fileText = "Evidence body";
+
+    recordOutgoingContext({
+      conversationId: CONVERSATION_A,
+      text: userPrompt,
+      fileText,
+      label: "pending attachment prompt",
+    });
+    recordProviderRequestContext({
+      conversationId: CONVERSATION_A,
+      userPrompt,
+      label: "provider request",
+    });
+
+    expect(getConversationContextEstimate(CONVERSATION_A)).toBe(
+      estimateDeepSeekTokens(userPrompt) + estimateDeepSeekTokens(fileText),
+    );
   });
 
   it("ignores an empty provider request", () => {
@@ -69,10 +111,13 @@ describe("recordProviderRequestContext", () => {
       .toBe(estimateDeepSeekTokens("BBBB"));
   });
 
-  it("clears the recorded request context", () => {
+  it("clears pending and committed request context", () => {
+    recordOutgoingContext({
+      conversationId: CONVERSATION_A,
+      text: "pending",
+    });
     recordProviderRequestContext({
       conversationId: CONVERSATION_A,
-      injectedText: "hidden",
       userPrompt: "visible",
     });
 
