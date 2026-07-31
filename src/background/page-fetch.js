@@ -1,5 +1,4 @@
 const PAGE_FETCH_TIMEOUT_MS = 15_000;
-const PAGE_FETCH_MAX_REDIRECTS = 5;
 const PAGE_FETCH_MAX_BYTES = 5 * 1024 * 1024;
 
 const SAFE_REQUEST_HEADERS = new Map([
@@ -17,11 +16,8 @@ const BLOCKED_HOSTNAMES = new Set([
   "instance-data",
 ]);
 
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-
 export {
   PAGE_FETCH_TIMEOUT_MS,
-  PAGE_FETCH_MAX_REDIRECTS,
   PAGE_FETCH_MAX_BYTES,
 };
 
@@ -218,7 +214,7 @@ export function normalizePageFetchRequest(input, options = {}) {
       headers: filterSafeHeaders(safeOptions.headers),
       credentials: "omit",
       cache: safeOptions.cache === "no-store" ? "no-store" : "default",
-      redirect: "manual",
+      redirect: "follow",
     },
   };
 }
@@ -325,12 +321,6 @@ export async function fetchPageContent(input, options = {}, dependencies = {}) {
     1,
     Number(dependencies.timeoutMs) || PAGE_FETCH_TIMEOUT_MS,
   );
-  const maxRedirects = Math.max(
-    0,
-    Number.isFinite(Number(dependencies.maxRedirects))
-      ? Number(dependencies.maxRedirects)
-      : PAGE_FETCH_MAX_REDIRECTS,
-  );
   const maxBytes = Math.max(
     1,
     Number(dependencies.maxBytes) || PAGE_FETCH_MAX_BYTES,
@@ -342,42 +332,24 @@ export async function fetchPageContent(input, options = {}, dependencies = {}) {
   const controller = new AbortController();
   const timer = setTimer(() => controller.abort(), timeoutMs);
 
-  let currentUrl = request.url;
-  let redirectCount = 0;
-
   try {
-    while (true) {
-      const response = await fetchImpl(currentUrl, {
-        ...request.fetchOptions,
-        signal: controller.signal,
-      });
+    const response = await fetchImpl(request.url, {
+      ...request.fetchOptions,
+      signal: controller.signal,
+    });
 
-      if (REDIRECT_STATUSES.has(response.status)) {
-        const location = response.headers.get("location");
-        if (!location) {
-          throw new Error(`Redirect response from ${currentUrl} had no Location header.`);
-        }
-        if (redirectCount >= maxRedirects) {
-          throw new Error(`Page fetch exceeded ${maxRedirects} redirects.`);
-        }
+    const finalUrl = validatePageFetchUrl(response.url || request.url).href;
 
-        const nextUrl = new URL(location, currentUrl);
-        currentUrl = validatePageFetchUrl(nextUrl.href).href;
-        redirectCount += 1;
-        continue;
-      }
-
-      if (!response.ok) {
-        throw createHttpError(response, currentUrl);
-      }
-
-      const bytes = await readResponseBytes(response, maxBytes);
-      return {
-        html: decodePageBytes(bytes, response),
-        status: response.status,
-        url: currentUrl,
-      };
+    if (!response.ok) {
+      throw createHttpError(response, finalUrl);
     }
+
+    const bytes = await readResponseBytes(response, maxBytes);
+    return {
+      html: decodePageBytes(bytes, response),
+      status: response.status,
+      url: finalUrl,
+    };
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error(`Page fetch timed out after ${timeoutMs}ms.`);
