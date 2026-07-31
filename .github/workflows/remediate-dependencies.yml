@@ -14,7 +14,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v4
@@ -30,27 +30,57 @@ jobs:
         run: |
           npm remove xlsx
           npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+          npm install --save-dev vitest@latest @vitest/coverage-v8@latest @vitest/ui@latest
           npm audit fix || true
           rm -rf node_modules
           npm ci
 
-      - name: Capture audit report
-        run: npm audit --json > /tmp/dependency-audit.json || true
+      - name: Capture candidate versions and audit
+        run: |
+          npm ls vitest @vitest/coverage-v8 @vitest/ui xlsx --depth=0 --json > /tmp/dependency-versions.json
+          npm audit --json > /tmp/dependency-audit.json || true
 
-      - name: Format audit summary
+      - name: Run candidate verification
+        shell: bash
+        run: |
+          set +e
+          status=success
+          npm run check-locales || status=failure
+          npm run test:contracts || status=failure
+          npm run test:unit || status=failure
+          npm run build:chrome || status=failure
+          unzip -t better-deepseek-chrome.zip || status=failure
+          npm run build:firefox || status=failure
+          unzip -t better-deepseek-firefox.zip || status=failure
+          printf '%s\n' "$status" > /tmp/dependency-verification-status.txt
+          exit 0
+
+      - name: Format candidate diagnostic
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from 'node:fs';
           const report = JSON.parse(readFileSync('/tmp/dependency-audit.json', 'utf8'));
+          const versions = JSON.parse(readFileSync('/tmp/dependency-versions.json', 'utf8'));
+          const status = readFileSync('/tmp/dependency-verification-status.txt', 'utf8').trim();
           const counts = report.metadata?.vulnerabilities ?? {};
           const packages = Object.keys(report.vulnerabilities ?? {}).sort();
+          const direct = versions.dependencies ?? {};
+          const versionLines = Object.entries(direct)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([name, data]) => `- \`${name}\`: \`${data.version ?? 'unknown'}\``);
           const lines = [
-            '## Dependency remediation diagnostic',
+            '## Vitest-family remediation diagnostic',
             '',
             'Candidate operations:',
             '- official SheetJS 0.20.3 CDN tarball',
+            '- latest coordinated `vitest`, `@vitest/coverage-v8`, and `@vitest/ui` releases',
             '- compatible `npm audit fix` updates',
             '- clean `npm ci` reinstall',
+            '',
+            'Candidate direct versions:',
+            ...versionLines,
+            '',
+            `Shared verification: **${status}**`,
             '',
             'Residual vulnerability counts:',
             '```json',
