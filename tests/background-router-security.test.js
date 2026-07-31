@@ -24,7 +24,7 @@ describe("background router security boundaries", () => {
     const background = source("src/background/index.js");
 
     expect(background).toContain('import { fetchPageContent } from "./page-fetch.js"');
-    expect(background).toContain('export { fetchPageContent } from "./page-fetch.js"');
+    expect(background).toContain("export { fetchPageContent };");
     expect(background).not.toContain("safeOptions.method");
     expect(background).not.toContain("safeOptions.body");
     expect(background).not.toContain("safeOptions.credentials");
