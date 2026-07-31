@@ -23,16 +23,20 @@ Establish a transport-agnostic, security-first contract layer for a future authe
 
 ## Chosen architecture
 
-The canonical foundation lives under the existing runtime namespace:
+The browser-safe contract surface lives under the existing runtime namespace:
 
 1. `src/runtime/local-bridge/protocol.js` — protocol version, approved command identifiers, risk identifiers, strict request validation, and response envelopes.
 2. `src/runtime/local-bridge/command-catalog.js` — authoritative command risk and repository-scope classification.
-3. `src/runtime/local-bridge/path-policy.js` — canonical repository-root boundary and traversal prevention.
-4. `src/runtime/local-bridge/secret-filter.js` — recursive secret and credential redaction.
-5. `src/runtime/local-bridge/operation-log.js` — bounded, redacted operation records.
-6. `src/runtime/safety/approval-policy.js` — exact fail-closed approval decisions.
-7. `src/runtime/local-bridge/command-registry.js` — explicit command registration and dispatch, timeouts, abort signals, output-size limits, and logging.
-8. `src/runtime/local-bridge/index.js` — stable public exports.
+3. `src/runtime/local-bridge/secret-filter.js` — recursive secret and credential redaction.
+4. `src/runtime/local-bridge/operation-log.js` — bounded, redacted operation records.
+5. `src/runtime/safety/approval-policy.js` — exact fail-closed approval decisions for use by a trusted host verifier.
+6. `src/runtime/local-bridge/command-registry.js` — explicit command registration and dispatch, trusted approval verification, timeouts, abort signals, output-size limits, and logging.
+7. `src/runtime/local-bridge/index.js` — browser-safe public exports with no Node built-ins.
+
+Host-only filesystem policy lives separately:
+
+8. `src/runtime/local-bridge/host/path-policy.js` — canonical repository-root boundary and traversal prevention using `node:path`.
+9. `src/runtime/local-bridge/host/index.js` — host-only exports.
 
 There is one Local Bridge namespace. A temporary `src/local-bridge` implementation used during development was removed after consolidation.
 
@@ -72,13 +76,13 @@ Responses use one of:
 { version: 1, requestId, ok: false, error: { code, message } }
 ```
 
-Requests accept plain JSON-compatible data only. Functions, prototype-bearing objects, cycles, non-finite numbers, excessive nesting, unknown commands, unsafe identifiers, and malformed approval data are rejected.
+Requests accept plain JSON-compatible data only. Functions, prototype-bearing objects, cycles, non-finite numbers, excessive nesting, prototype-polluting keys, unknown commands, unsafe identifiers, and malformed approval data are rejected.
 
 ## Repository boundary
 
 Repository-scoped commands require a stable `repositoryId`; raw absolute repository paths are not part of the bridge envelope.
 
-The path policy receives an already-authorized repository root and a requested relative path. It rejects:
+The host-only path policy receives an already-authorized repository root and a requested relative path. It rejects:
 
 - non-absolute or empty repository roots;
 - absolute requested paths;
@@ -87,11 +91,15 @@ The path policy receives an already-authorized repository root and a requested r
 - sibling-prefix escapes;
 - repository-root access without an explicit option.
 
-It handles Windows and POSIX paths deterministically.
+It handles Windows and POSIX paths deterministically. A future filesystem adapter must additionally resolve real paths before access so symlink and junction escapes cannot bypass the lexical boundary.
 
 ## Approval model
 
-`READ` operations may run without an explicit grant. `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE`, and `PUBLISH` require the exact matching risk in `approval.grantedRiskLevels`. One category does not silently authorize another.
+`READ` operations may run without approval. `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE`, and `PUBLISH` require a trusted `approvalVerifier` supplied by the local host.
+
+Caller-provided `approval.grantedRiskLevels` values are untrusted context and do not authorize execution by themselves. The host verifier must validate a user-approved, host-issued grant before returning `true`. Without a verifier, all non-read commands fail closed.
+
+The exported `isRiskApproved()` helper may be used inside the trusted verifier only after authentication and grant authenticity have been established.
 
 ## Execution controls
 
@@ -99,6 +107,8 @@ The registry:
 
 - has no default handler or string-to-shell conversion;
 - rejects unregistered commands;
+- rejects repository-scoped commands without `repositoryId`;
+- requires trusted host approval verification for non-read commands;
 - applies per-command execution timeouts through `AbortController`;
 - rejects results exceeding a configurable byte limit;
 - normalizes failures into stable response envelopes;
@@ -119,7 +129,10 @@ The registry:
 - No remote-network binding.
 - No unrestricted filesystem root.
 - No caller-controlled command-risk downgrade.
+- No caller-self-authorized write, destructive, or publish execution.
 - No repository-scoped execution without a repository ID.
+- No Node built-ins exported through the browser-safe bridge index.
+- No prototype-polluting JSON keys.
 - No hidden command execution.
 - No secrets in operation logs.
 
@@ -127,7 +140,7 @@ The registry:
 
 The isolated Node harness currently passes:
 
-- 27 Local Bridge contract, catalogue, path, approval, logging, redaction, timeout, output-limit, and registry tests.
+- 29 Local Bridge contract, catalogue, host-path, approval, logging, redaction, timeout, output-limit, trust-boundary, and registry tests.
 - 2 repository-ingestion policy tests.
 
 Full Vitest, Chrome, Firefox, Playwright, and Android verification remain dependent on GitHub Actions or a usable repository checkout.
@@ -138,8 +151,9 @@ A later Agent 2 batch must add, in order:
 
 1. repository allowlist storage mapping `repositoryId` to canonical roots;
 2. authentication-token and extension-identity contracts;
-3. one transport: Native Messaging or loopback-only authenticated HTTP;
-4. structured adapters for Git, GitHub CLI, VS Code, filesystem, search, tests, builds, and archives;
-5. process cleanup, output streaming/chunking, cancellation propagation, and host installation documentation.
+3. host-issued approval grants and a concrete `approvalVerifier`;
+4. one transport: Native Messaging or loopback-only authenticated HTTP;
+5. structured adapters for Git, GitHub CLI, VS Code, filesystem, search, tests, builds, and archives;
+6. realpath/symlink/junction containment, process cleanup, output streaming/chunking, cancellation propagation, and host installation documentation.
 
 No adapter may introduce unrestricted shell execution.
