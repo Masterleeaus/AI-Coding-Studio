@@ -13,6 +13,7 @@ on:
       - package.json
       - package-lock.json
       - playwright.android.config.js
+      - tests/e2e-android/**
       - .github/workflows/android-verify.yml
   workflow_dispatch:
 
@@ -57,21 +58,29 @@ jobs:
       - name: Build Android JavaScript target
         run: npm run build:android
 
-      - name: Assemble debug APK
-        run: npm run android:assemble:debug
+      - name: Assemble debug APK with diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/run-android-gradle.js assembleDebug --stacktrace --info 2>&1 | tee android/assemble-debug.log
 
       - name: Run Android simulator parity tests
         run: npm run test:e2e:android
 
-      - name: Run Android Gradle tests
-        run: npm run android:test
+      - name: Run Android Gradle tests with diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/run-android-gradle.js test --stacktrace 2>&1 | tee android/gradle-tests.log
 
-      - name: Upload Android artefacts
+      - name: Upload Android artefacts and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-verification-artefacts
           path: |
+            android/assemble-debug.log
+            android/gradle-tests.log
             android/app/build/outputs/apk/debug/
             android/app/build/reports/
             playwright-report-android/
