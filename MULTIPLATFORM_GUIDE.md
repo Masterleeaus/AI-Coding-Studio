@@ -245,16 +245,17 @@ The extension automatically loads the appropriate adapter for each platform.
 - Use browser DevTools to inspect actual element structure
 - Update adapter selectors if platform UI changed
 
-### Module Initialization Issues
-- Check ModuleManager logs for dependency resolution
-- Verify all dependent modules initialized successfully
-- Check for errors in module:error events
+### Runtime Initialization Issues
+- Check the content-script console for the first initialization error.
+- Verify the Runtime Kernel loaded workflow definitions without reporting local tools as available.
+- Verify provider-specific selectors and the active page adapter independently.
+- Local filesystem, Git, build, test, and editor capabilities remain unavailable until an authenticated Local Bridge is configured.
 
 ## Performance Considerations
 
 - **Platform detection**: Runs once at initialization (~1ms)
 - **Adapter creation**: ~2-5ms per adapter
-- **Module loading**: ~10-20ms for all features on typical platforms
+- **Runtime kernel loading**: definitions only; local tool discovery occurs only when a Local Bridge is configured
 - **Action execution**: Varies by action type (50-5000ms)
 
 ## Browser Support

@@ -34,6 +34,7 @@ import { i18n } from "../lib/i18n.svelte.js";
 import { remoteConfig, REMOTE_CONFIG_EVENT, detectModelType } from "../lib/remote-config.svelte.js";
 import { STORAGE_KEYS, CSS_PRESETS } from "../lib/constants.js";
 import { loadAllHistory, retainOnlyHistorySession } from "./load-all-history.js";
+import { initRuntimeKernel } from "../runtime/singleton.js";
 
 const CONTENT_BOOTSTRAP_KEY = "__bdsContentBootstrapped";
 
@@ -47,6 +48,7 @@ if (!window[CONTENT_BOOTSTRAP_KEY]) {
 async function init() {
   await waitForBody();
   await loadStateFromStorage();
+  await initRuntimeKernel();
 
   if (typeof localStorage !== "undefined" && localStorage.getItem("bds:devlog")) {
     setDevLogging(true);
