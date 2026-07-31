@@ -32,4 +32,13 @@ describe("production runtime trust boundaries", () => {
     expect(proxy).toContain("isTrustedRuntimeSender");
     expect(proxy).toMatch(/if\s*\(\s*!isTrustedRuntimeSender\(sender/);
   });
+
+  it("emits the network-state event consumed by the content bridge", () => {
+    const injected = source("src/injected/index.js");
+    const constants = source("src/lib/constants.js");
+
+    expect(constants).toContain('networkState: "bds:network-state"');
+    expect(injected).toContain('networkState: "bds:network-state"');
+    expect(injected).toContain("new CustomEvent(EVENTS.networkState");
+  });
 });
