@@ -1,21 +1,98 @@
-name: Diagnose Verified Dependency Candidate
+name: Dependency Remediation Verification
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent-3/dependency-security-remediation
-    paths:
-      - .github/workflows/remediate-dependencies.yml
+      - agent-3/workflows-tests-integration
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
+
+concurrency:
+  group: dependency-remediation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SHEETJS_TARBALL: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+  VITEST_VERSION: 4.1.10
 
 jobs:
-  diagnose:
+  shared:
+    name: Audit, contracts, unit and XLSX round trip
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Build exact dependency candidate
+        run: |
+          npm ci
+          npm remove xlsx
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
+          npm audit fix || true
+          rm -rf node_modules
+          npm ci
+      - name: Enforce high-severity audit gate
+        run: npm audit --audit-level=high
+      - name: Verify locales, workflow contracts and unit suite
+        run: |
+          npm run check-locales
+          npm run test:contracts
+          npm run test:unit
 
+  browsers:
+    name: Chrome and Firefox builds and startup smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - id: setup-firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+      - name: Build exact dependency candidate
+        run: |
+          npm ci
+          npm remove xlsx
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
+          npm audit fix || true
+          rm -rf node_modules
+          npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify Chrome target
+        run: |
+          npm run build:chrome
+          unzip -t better-deepseek-chrome.zip
+          npm run test:e2e
+      - name: Verify Firefox target
+        env:
+          FIREFOX_BIN: ${{ steps.setup-firefox.outputs.firefox-path }}
+        run: |
+          npm run build:firefox
+          unzip -t better-deepseek-firefox.zip
+          npm run test:e2e:firefox
+
+  android:
+    name: Android WebView, APK and Gradle tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,74 +108,25 @@ jobs:
           gradle-version: "8.7"
           cache-provider: basic
       - uses: android-actions/setup-android@v3
-      - id: setup_firefox
-        uses: browser-actions/setup-firefox@v1
-        with:
-          firefox-version: latest
-
-      - id: candidate
-        continue-on-error: true
+      - name: Build exact dependency candidate
         run: |
           npm ci
           npm remove xlsx
-          npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-          npm install --save-dev vitest@4.1.10 @vitest/coverage-v8@4.1.10 @vitest/ui@4.1.10
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
           npm audit fix || true
           rm -rf node_modules
           npm ci
-
-      - id: audit
-        continue-on-error: true
-        run: npm audit --audit-level=high
-
-      - id: shared
-        continue-on-error: true
-        run: |
-          npm run check-locales
-          npm run test:contracts
-          npm run test:unit
-
-      - id: playwright
-        continue-on-error: true
+      - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-
-      - id: chrome
-        continue-on-error: true
-        run: |
-          npm run build:chrome
-          unzip -t better-deepseek-chrome.zip
-          npm run test:e2e
-
-      - id: firefox
-        continue-on-error: true
-        env:
-          FIREFOX_BIN: ${{ steps.setup_firefox.outputs.firefox-path }}
-        run: |
-          npm run build:firefox
-          unzip -t better-deepseek-firefox.zip
-          npm run test:e2e:firefox
-
-      - id: android_web
-        continue-on-error: true
+      - name: Verify Android WebView target
         run: |
           npm run build:android
           npm run test:e2e:android
-
-      - id: android_native
-        continue-on-error: true
+      - name: Verify Android native target
         run: |
           gradle -p android --no-daemon assembleDebug --stacktrace
           gradle -p android --no-daemon test --stacktrace
-
-      - if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CANDIDATE: ${{ steps.candidate.outcome }}
-          AUDIT: ${{ steps.audit.outcome }}
-          SHARED: ${{ steps.shared.outcome }}
-          PLAYWRIGHT: ${{ steps.playwright.outcome }}
-          CHROME: ${{ steps.chrome.outcome }}
-          FIREFOX: ${{ steps.firefox.outcome }}
-          ANDROID_WEB: ${{ steps.android_web.outcome }}
-          ANDROID_NATIVE: ${{ steps.android_native.outcome }}
-        run: gh pr comment 8 --body "Full dependency candidate matrix — candidate: ${CANDIDATE}; audit: ${AUDIT}; shared: ${SHARED}; Playwright: ${PLAYWRIGHT}; Chrome: ${CHROME}; Firefox: ${FIREFOX}; Android WebView: ${ANDROID_WEB}; Android native: ${ANDROID_NATIVE}. This diagnostic made no repository content changes."
