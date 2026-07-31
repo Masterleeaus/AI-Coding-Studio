@@ -49,6 +49,7 @@ export const COMMANDS = Object.freeze({
 const KNOWN_COMMANDS = new Set(Object.values(COMMANDS));
 const KNOWN_RISK_LEVELS = new Set(Object.values(RISK_LEVELS));
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const SAFE_TOKEN = /^[A-Za-z0-9_-]{32,256}$/;
 const DANGEROUS_JSON_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
 export class BridgeContractError extends Error {
@@ -114,6 +115,18 @@ function validateIdentifier(value, field, required = true) {
   return value;
 }
 
+function validateAuth(input) {
+  if (!isPlainRecord(input)) {
+    throw new BridgeContractError('INVALID_AUTH', 'auth must be a plain object.');
+  }
+  const sessionId = validateIdentifier(input.sessionId, 'session_id');
+  const clientId = validateIdentifier(input.clientId, 'client_id');
+  if (typeof input.token !== 'string' || !SAFE_TOKEN.test(input.token)) {
+    throw new BridgeContractError('INVALID_AUTH', 'auth token is invalid.');
+  }
+  return { sessionId, clientId, token: input.token };
+}
+
 export function isKnownCommand(command) {
   return KNOWN_COMMANDS.has(command);
 }
@@ -151,8 +164,14 @@ export function validateBridgeRequest(input) {
     throw new BridgeContractError('INVALID_APPROVAL', 'grantedRiskLevels contains an unknown risk level.');
   }
   const approval = { grantedRiskLevels: [...new Set(granted)] };
+  if (approvalInput.grant !== undefined) {
+    if (!isPlainRecord(approvalInput.grant)) {
+      throw new BridgeContractError('INVALID_APPROVAL', 'approval grant must be a plain object.');
+    }
+    approval.grant = cloneJsonValue(approvalInput.grant);
+  }
 
-  return {
+  const request = {
     version: BRIDGE_PROTOCOL_VERSION,
     requestId,
     command: input.command,
@@ -160,6 +179,10 @@ export function validateBridgeRequest(input) {
     parameters,
     approval,
   };
+  if (input.auth !== undefined) {
+    request.auth = validateAuth(input.auth);
+  }
+  return request;
 }
 
 export function createSuccessResponse(requestId, result) {
