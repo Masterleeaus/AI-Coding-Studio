@@ -1,0 +1,92 @@
+name: Android Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+      - integration/local-first-repair
+    paths:
+      - android/**
+      - src/android/**
+      - src/platform/**
+      - build.js
+      - package.json
+      - package-lock.json
+      - playwright.android.config.js
+      - tests/e2e-android/**
+      - .github/workflows/android-verify.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+          cache-provider: basic
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Android JavaScript target
+        run: npm run build:android
+
+      - name: Assemble debug APK with diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle -p android --no-daemon assembleDebug --stacktrace --info 2>&1 | tee android/assemble-debug.log
+
+      - name: Run Android simulator parity tests
+        run: npm run test:e2e:android
+
+      - name: Run Android Gradle tests with diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle -p android --no-daemon test --stacktrace 2>&1 | tee android/gradle-tests.log
+
+      - name: Upload Android artefacts and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-verification-artefacts
+          path: |
+            android/assemble-debug.log
+            android/gradle-tests.log
+            android/app/build/outputs/apk/debug/
+            android/app/build/reports/
+            playwright-report-android/
+          if-no-files-found: ignore
