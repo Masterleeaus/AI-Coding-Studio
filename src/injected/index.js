@@ -18,6 +18,7 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
     configUpdate: "bds:config-update",
     deepResearchConfigUpdate: "bds:deep-research-config-update",
     requestConfig: "bds:request-config",
+    networkState: "bds:network-state",
     markVoiceMessage: "bds:mark-voice-message",
     sessionData: "bds:session-data",
   };
@@ -140,44 +141,6 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
     return;
   }
   window.__bdsNetworkPatched = true;
-
-  // ── Debug API: inspect/override remote config from DevTools ──
-  (function() {
-    if (window.__BDS_CONFIG__) return;
-    let reqId = 0;
-    const pending = new Map();
-
-    window.addEventListener("bds:debug-api-response", (e) => {
-      let d = e.detail;
-      if (typeof d === "string") { try { d = JSON.parse(d); } catch { return; } }
-      const cb = pending.get(d.id);
-      if (cb) { cb(d.result); pending.delete(d.id); }
-    });
-
-    function call(method) {
-      return function() {
-        const args = Array.from(arguments);
-        return new Promise((resolve) => {
-          const id = ++reqId;
-          pending.set(id, resolve);
-          window.dispatchEvent(new CustomEvent("bds:debug-api-request", {
-            detail: JSON.stringify({ id, method, args }),
-          }));
-        });
-      };
-    }
-
-    window.__BDS_CONFIG__ = {
-      raw: call("getRaw"),
-      getFlag: call("getFlag"),
-      getConfig: call("getConfig"),
-      applyRemote: call("applyRemote"),
-      replaceRemote: call("replaceRemote"),
-      resetToBuiltin: call("resetToBuiltin"),
-      detectModel: call("detectModel"),
-      toggleDebugPanel: call("toggleDebugPanel"),
-    };
-  })();
 
   // ── Listen for config updates from the content script ──
   window.addEventListener(EVENTS.configUpdate, (event) => {
