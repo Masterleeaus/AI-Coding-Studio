@@ -4,7 +4,6 @@
 
 import { mount } from "svelte";
 import App from "./App.svelte";
-import ConfigDebugPanel from "./ConfigDebugPanel.svelte";
 import state from "../state.js";
 
 /**
@@ -33,12 +32,6 @@ export function mountUi() {
   document.body.appendChild(root);
 
   const app = mount(App, { target: root });
-
-  // Mount config debug panel (hidden by default. to open wriite to console: await __BDS_CONFIG__.toggleDebugPanel();)
-  const debugRoot = document.createElement("div");
-  debugRoot.id = "bds-config-debug";
-  document.body.appendChild(debugRoot);
-  mount(ConfigDebugPanel, { target: debugRoot });
 
   /** @type {UiApi} */
   const api = {
