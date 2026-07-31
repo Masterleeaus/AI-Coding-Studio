@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, vi } from "vitest";
 
+// Several content-runtime modules read location.href at import time. Node-based
+// Vitest suites do not create a DOM, so provide the same minimal URL contract
+// before test modules are evaluated. JSDOM suites keep their native Location.
+if (typeof globalThis.location === "undefined") {
+  Object.defineProperty(globalThis, "location", {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: new URL("https://chat.deepseek.com/"),
+  });
+}
+
 function createEventMock() {
   const listeners = new Set();
   return {
