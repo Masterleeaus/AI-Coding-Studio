@@ -310,7 +310,7 @@ function stripPrefix(path, prefix) {
   return path;
 }
 
-/** Find the common directory prefix from a list of paths */
+/** Find the common directory prefix (the ZIP root folder) */
 function findCommonPrefix(paths) {
   if (!paths.length) return "";
   const first = paths[0];
@@ -345,12 +345,12 @@ function buildTree(paths) {
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
       const isLast = i === keys.length - 1;
-      const marker = isLast ? "└── " : "├── ";
+      const marker = isLast ? "\u2514\u2500\u2500 " : "\u251c\u2500\u2500 ";
       const children = node[key];
       const isDir = Object.keys(children).length > 0;
       result += prefix + marker + key + (isDir ? "/" : "") + "\n";
       if (isDir) {
-        walk(children, prefix + (isLast ? "    " : "│   "));
+        walk(children, prefix + (isLast ? "    " : "\u2502   "));
       }
     }
   }
