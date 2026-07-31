@@ -28,6 +28,59 @@ test('normalizes a valid bridge request', () => {
   });
 });
 
+test('normalizes optional session authentication and host approval grants', () => {
+  const request = validateBridgeRequest({
+    version: 1,
+    requestId: 'req-auth',
+    command: COMMANDS.GIT_PUSH,
+    repositoryId: 'repo-1',
+    parameters: {},
+    auth: {
+      sessionId: 'session-1',
+      clientId: 'client-1',
+      token: 'a'.repeat(43),
+    },
+    approval: {
+      grantedRiskLevels: ['PUBLISH'],
+      grant: { version: 1, grantId: 'grant-1', signature: 'signed-value' },
+    },
+  });
+
+  assert.deepEqual(request.auth, {
+    sessionId: 'session-1',
+    clientId: 'client-1',
+    token: 'a'.repeat(43),
+  });
+  assert.deepEqual(request.approval.grant, {
+    version: 1,
+    grantId: 'grant-1',
+    signature: 'signed-value',
+  });
+});
+
+test('rejects malformed authentication and approval grants', () => {
+  assert.throws(
+    () => validateBridgeRequest({
+      version: 1,
+      requestId: 'req-auth',
+      command: COMMANDS.SYSTEM_HEALTH,
+      parameters: {},
+      auth: { sessionId: 'session', clientId: 'client', token: 'short' },
+    }),
+    (error) => error.code === 'INVALID_AUTH',
+  );
+  assert.throws(
+    () => validateBridgeRequest({
+      version: 1,
+      requestId: 'req-grant',
+      command: COMMANDS.SYSTEM_HEALTH,
+      parameters: {},
+      approval: { grant: [] },
+    }),
+    (error) => error.code === 'INVALID_APPROVAL',
+  );
+});
+
 test('rejects unknown commands and malformed parameters', () => {
   assert.throws(
     () => validateBridgeRequest({ version: 1, requestId: 'req', command: 'shell.exec', parameters: {} }),
