@@ -1,3 +1,5 @@
+import { isTrustedRuntimeSender } from "./runtime-policy.js";
+
 const DEEPSEEK_BASE = "https://api.deepseek.com";
 const BETA_BASE = "https://api.deepseek.com/beta";
 
@@ -132,7 +134,7 @@ function buildChatCompletionsRequest(req) {
       body.stream_options = { include_usage: true };
     }
   }
-  if (req.thinking?.type === 'enabled') {
+  if (req.thinking?.type === "enabled") {
     body.thinking = req.thinking;
     if (req.reasoningEffort) body.reasoning_effort = req.reasoningEffort;
   }
@@ -180,6 +182,22 @@ function buildCompletionsRequest(req) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (
+    message?.type !== "bds-api-proxy" &&
+    message?.type !== "bds-api-proxy-abort"
+  ) {
+    return false;
+  }
+
+  if (!isTrustedRuntimeSender(sender, chrome.runtime.id)) {
+    sendResponse({
+      ok: false,
+      error: "Untrusted runtime sender.",
+      status: 0,
+    });
+    return false;
+  }
+
   if (message.type === "bds-api-proxy") {
     proxyApiRequest(message.request)
       .then((result) => sendResponse(result))
@@ -191,10 +209,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       });
     return true;
-  }
-
-  if (message.type === "bds-api-proxy-abort") {
-    return false;
   }
 
   return false;
