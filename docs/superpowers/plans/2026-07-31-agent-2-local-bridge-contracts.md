@@ -128,7 +128,7 @@
 - [x] Expose host-only path policy through `src/runtime/local-bridge/host/index.js`.
 - [x] Remove the temporary parallel `src/local-bridge` namespace.
 - [x] Align the design with the final runtime architecture.
-- [ ] Create the final Agent 2 report.
+- [x] Create the final Agent 2 report.
 
 ## Task 7: Verification and review
 
@@ -139,7 +139,7 @@
 - [x] Attempt CodeRabbit review: CLI unavailable and installation blocked by DNS; no GitHub app review appeared.
 - [x] Address self-review findings: risk downgrade, prototype pollution, caller-self-approval, browser `node:path` exposure, and unrelated reader formatting drift.
 - [x] Open draft PR #6 into `integration/local-first-repair`.
-- [ ] Create the final report and update coordination issue #3.
+- [x] Create the final report and update coordination issue #3.
 
 ## Deferred implementation batches
 
