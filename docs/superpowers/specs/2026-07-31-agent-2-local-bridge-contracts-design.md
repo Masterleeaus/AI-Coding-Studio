@@ -2,51 +2,51 @@
 
 ## Status
 
-Approved implementation design derived from the authoritative three-agent repair workflow for `Masterleeaus/AI-Coding-Studio`.
+Implemented foundation on `agent-2/local-bridge-tooling`, based on the authoritative three-agent repair workflow for `Masterleeaus/AI-Coding-Studio`.
 
 ## Existing repository assessment
 
-The repository does not currently contain an operational browser-to-local companion transport. The closest implementations are:
+The `main` branch did not contain an operational browser-to-local companion transport. The closest implementations were:
 
 - `src/lib/local-directory-source.js`: browser-granted, read-only File System Access API ingestion.
 - `src/content/files/github-reader.js`: in-memory GitHub ZIP ingestion.
-- `src/modules/features/TerminalRuntimeModule.js`: simulated command execution that always returns success.
+- `src/modules/features/TerminalRuntimeModule.js`: simulated command execution that always reports success.
 - `src/modules/features/ToolRuntimeModule.js`: simulated tool execution and unconditional approval.
 - `src/modules/features/McpIntegrationModule.js`: an in-memory registry without a local process transport.
 - `src/core/bootstrap-enhanced.js`: registers the simulated runtimes, but the production content entry point does not invoke this bootstrap.
 
-These files are evidence and integration references; none is a safe local command bridge.
+Draft PR #2 introduced a useful `src/runtime` kernel and Local Bridge client prototype. It was used as architectural evidence, not merged unchanged, because it lacked strict JSON request validation, canonical repository-path enforcement, output-size limits, secret-redacted operation logs, authentication/identity contracts, and the workflow's required risk taxonomy.
 
 ## Goal
 
 Establish a transport-agnostic, security-first contract layer for a future authenticated loopback or Native Messaging companion without enabling arbitrary process execution.
 
-## Chosen approach
+## Chosen architecture
 
-Create focused modules under `src/local-bridge/`:
+The canonical foundation lives under the existing runtime namespace:
 
-1. `contracts.js` — protocol version, command identifiers, risk levels, request and response validation.
-2. `path-policy.js` — canonical repository-root allowlisting and traversal prevention.
-3. `secret-filter.js` — conservative redaction for tokens, authorization headers, private keys and sensitive environment assignments.
-4. `approval-policy.js` — explicit approval decisions based on risk and caller-provided grants.
-5. `operation-log.js` — bounded, redacted operation records.
-6. `command-registry.js` — explicit command registration and dispatch; no shell-string fallback.
-7. `index.js` — stable public exports.
+1. `src/runtime/local-bridge/protocol.js` — protocol version, approved command identifiers, risk identifiers, strict request validation, and response envelopes.
+2. `src/runtime/local-bridge/command-catalog.js` — authoritative command risk and repository-scope classification.
+3. `src/runtime/local-bridge/path-policy.js` — canonical repository-root boundary and traversal prevention.
+4. `src/runtime/local-bridge/secret-filter.js` — recursive secret and credential redaction.
+5. `src/runtime/local-bridge/operation-log.js` — bounded, redacted operation records.
+6. `src/runtime/safety/approval-policy.js` — exact fail-closed approval decisions.
+7. `src/runtime/local-bridge/command-registry.js` — explicit command registration and dispatch, timeouts, abort signals, output-size limits, and logging.
+8. `src/runtime/local-bridge/index.js` — stable public exports.
 
-The first implementation batch deliberately contains no HTTP server, WebSocket server, Native Messaging host, `child_process`, shell, Git, GitHub CLI or VS Code CLI invocation. Those adapters must consume these contracts later and remain independently testable.
+There is one Local Bridge namespace. A temporary `src/local-bridge` implementation used during development was removed after consolidation.
 
 ## Command model
 
-Every command definition has:
+Every approved command has an authoritative catalogue definition containing:
 
 - a unique command identifier;
-- one risk level: `READ`, `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE` or `PUBLISH`;
-- a request validator;
-- an asynchronous handler supplied by the eventual local companion;
-- an approval requirement derived from risk;
-- a redacted operation-log record.
+- one risk level: `READ`, `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE`, or `PUBLISH`;
+- whether a stable `repositoryId` is required.
 
-The registry rejects unknown commands, malformed requests, duplicate command registration, missing approvals and non-function handlers.
+Handlers cannot downgrade catalogue risk. Registration rejects unknown commands, duplicate handlers, non-function handlers, invalid validators, and risk mismatches.
+
+The initial catalogue covers health, tool discovery, repositories, files, search, patches, Git, GitHub pull requests, VS Code, tests, builds, and archives. `git.push` and `github.pr.create` are classified as `PUBLISH`.
 
 ## Protocol envelope
 
@@ -72,60 +72,74 @@ Responses use one of:
 { version: 1, requestId, ok: false, error: { code, message } }
 ```
 
-No request field accepts an arbitrary shell command string.
+Requests accept plain JSON-compatible data only. Functions, prototype-bearing objects, cycles, non-finite numbers, excessive nesting, unknown commands, unsafe identifiers, and malformed approval data are rejected.
 
 ## Repository boundary
 
-The path policy receives an already-authorized repository root and a requested relative path. It:
+Repository-scoped commands require a stable `repositoryId`; raw absolute repository paths are not part of the bridge envelope.
 
-- rejects empty or non-string roots;
-- rejects absolute requested paths;
-- rejects traversal segments;
-- resolves the requested path canonically;
-- verifies the result is the root or a descendant of the root;
-- handles Windows and POSIX separators deterministically.
+The path policy receives an already-authorized repository root and a requested relative path. It rejects:
 
-Filesystem access remains impossible until a future companion adapter supplies an allowlisted root.
+- non-absolute or empty repository roots;
+- absolute requested paths;
+- `..` traversal;
+- NUL bytes;
+- sibling-prefix escapes;
+- repository-root access without an explicit option.
+
+It handles Windows and POSIX paths deterministically.
 
 ## Approval model
 
-`READ` operations may run without an explicit grant. `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE` and `PUBLISH` require the same risk level to appear in `approval.grantedRiskLevels`. A higher-risk grant does not silently authorize a different category.
+`READ` operations may run without an explicit grant. `SAFE_EXECUTION`, `WRITE`, `DESTRUCTIVE`, and `PUBLISH` require the exact matching risk in `approval.grantedRiskLevels`. One category does not silently authorize another.
 
-Destructive and publish operations remain explicit per request; there is no global auto-approve switch.
+## Execution controls
 
-## Logging and secret handling
+The registry:
 
-Operation logs contain timestamps, request IDs, command IDs, repository IDs, outcomes and duration. Parameters and errors are recursively redacted before storage. The log has a configurable fixed maximum and evicts oldest records first.
+- has no default handler or string-to-shell conversion;
+- rejects unregistered commands;
+- applies per-command execution timeouts through `AbortController`;
+- rejects results exceeding a configurable byte limit;
+- normalizes failures into stable response envelopes;
+- redacts secrets from returned errors and operation logs.
 
-## Initial command catalogue
+## Repository-ingestion boundary
 
-The contract exports the approved identifiers from the workflow, including health, repository, file, search, patch, Git, GitHub PR, VS Code, test, build and archive commands. Exporting an identifier does not make a command executable; a handler must be explicitly registered.
+`src/content/files/repository-file-policy.js` blocks environment files, package-manager auth files, credential files, private keys, and common cloud/SSH credential paths before repository content is concatenated for AI use.
 
-## Testing
-
-Vitest tests cover:
-
-- valid and malformed request envelopes;
-- unknown command rejection;
-- duplicate registration rejection;
-- exact risk approval behavior;
-- traversal and absolute-path rejection;
-- Windows and POSIX repository boundaries;
-- secret redaction;
-- bounded operation logs;
-- successful and failed dispatch response envelopes.
+`src/content/files/github-reader.js` now applies that policy and no longer discards `.github/workflows`, allowing audits to inspect CI evidence without ingesting common secrets.
 
 ## Security invariants
 
 - No unrestricted `exec(command)`.
-- No shell strings from webpage content.
+- No shell strings received from webpage content.
+- No HTTP, WebSocket, Native Messaging, or process transport in this batch.
 - No wildcard CORS policy.
 - No remote-network binding.
 - No unrestricted filesystem root.
-- No force push or destructive operation without explicit approval.
-- No secrets in operation logs.
+- No caller-controlled command-risk downgrade.
+- No repository-scoped execution without a repository ID.
 - No hidden command execution.
+- No secrets in operation logs.
+
+## Verification
+
+The isolated Node harness currently passes:
+
+- 27 Local Bridge contract, catalogue, path, approval, logging, redaction, timeout, output-limit, and registry tests.
+- 2 repository-ingestion policy tests.
+
+Full Vitest, Chrome, Firefox, Playwright, and Android verification remain dependent on GitHub Actions or a usable repository checkout.
 
 ## Deferred work
 
-A later Agent 2 batch may add a Node companion and one authenticated transport after these contracts are verified. Transport selection must be documented separately and must preserve loopback-only binding or Native Messaging identity controls, authentication, timeouts, output limits and process cleanup.
+A later Agent 2 batch must add, in order:
+
+1. repository allowlist storage mapping `repositoryId` to canonical roots;
+2. authentication-token and extension-identity contracts;
+3. one transport: Native Messaging or loopback-only authenticated HTTP;
+4. structured adapters for Git, GitHub CLI, VS Code, filesystem, search, tests, builds, and archives;
+5. process cleanup, output streaming/chunking, cancellation propagation, and host installation documentation.
+
+No adapter may introduce unrestricted shell execution.
