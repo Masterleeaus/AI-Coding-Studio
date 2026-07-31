@@ -18,7 +18,7 @@ Every located caller is extension code running in the content-script runtime:
 - GitHub reader and commit reader
 - content bridge and settings UI for MCP and locale operations
 
-The listener currently does not validate `sender` for any of those privileged operations.
+The listener did not validate `sender` for any of those privileged operations.
 
 The generic `bds-fetch-url` callers require only page retrieval:
 
@@ -32,15 +32,15 @@ No located caller requires caller-supplied POST/PUT/PATCH/DELETE methods, reques
 
 ## Root Cause
 
-`fetchPageContent(url, options)` was implemented as a generic CORS bypass rather than as the narrow page-reader operation used by its callers. It forwards caller-controlled method, headers, body, cache, credentials, and redirect options under the extension's broad host permissions, reads the complete response into memory, and has no timeout or local-network target checks.
+`fetchPageContent(url, options)` was implemented as a generic CORS bypass rather than as the narrow page-reader operation used by its callers. It forwarded caller-controlled method, headers, body, cache, credentials, and redirect options under the extension's broad host permissions, read the complete response into memory, and had no timeout or local-network target checks.
 
-The main background router separately assumes possession of the runtime channel is sufficient trust and does not use the sender policy introduced in Agent 1 Pass 1.
+The main background router separately assumed possession of the runtime channel was sufficient trust and did not use the sender policy introduced in Agent 1 Pass 1.
 
 ## Security Model
 
 ### Background sender gate
 
-The main router will classify its own handled message types before applying sender validation. This avoids responding to messages owned by the separate DeepSeek API-proxy listener.
+The main router classifies its own handled message types before applying sender validation. This avoids responding to messages owned by the separate DeepSeek API-proxy listener.
 
 For every message owned by the main router:
 
@@ -50,16 +50,17 @@ For every message owned by the main router:
 
 ### Page fetch contract
 
-`bds-fetch-url` becomes a structured page-read operation:
+`bds-fetch-url` is reduced to a structured page-read operation:
 
 ```text
 public HTTP(S) URL
-    → validate target
+    → validate initial target
     → force GET
     → filter safe request headers
     → force credentials omit
     → bounded cache mode
-    → manual, validated redirects
+    → force browser-standard redirect following
+    → validate final response URL before body read
     → timeout
     → response-size cap
     → charset detection and text decode
@@ -75,7 +76,7 @@ Supported caller inputs:
   - `Pragma`
 - cache mode `no-store` when requested
 
-Ignored or rejected capability:
+Rejected or removed capability:
 
 - non-GET methods
 - request bodies
@@ -86,42 +87,51 @@ Ignored or rejected capability:
 - caller-controlled redirect policy
 - local, loopback, link-local, private, unspecified, multicast, or metadata-service literal targets
 - obvious local hostnames such as `localhost` and `.local`
+- URL-embedded credentials
 - `file:`, `data:`, `blob:`, extension, FTP, and other non-HTTP(S) protocols
 
-Public HTTP remains supported because the existing URL normalizer and web-reader feature explicitly accept both HTTP and HTTPS. This preserves compatibility while local/private destinations are rejected.
+Public HTTP remains supported because the existing URL normalizer and web-reader feature explicitly accept both HTTP and HTTPS. This preserves compatibility while obvious local/private destinations are rejected.
 
 ## Redirect Handling
 
-Redirects will be followed manually with a small maximum hop count. Every `Location` target is resolved against the current URL and validated before the next request. This prevents the bridge from blindly following an explicit redirect to an obvious local/private target.
+The browser is forced to use standard `redirect: "follow"` behaviour. After the response arrives, the final `response.url` is validated before status processing or body consumption.
 
-This does not fully solve DNS rebinding because browser JavaScript cannot reliably inspect the resolved remote IP before connection. The limitation must be documented. The repair materially reduces the exposed surface but does not claim complete network-layer SSRF prevention.
+A previous draft proposed `redirect: "manual"`, but the Fetch Standard exposes manual redirects to script as opaque redirect responses with status `0`, empty headers, and no body. That design would break redirected pages and cannot inspect `Location` in a portable Chrome/Firefox implementation.
+
+The implemented model therefore provides these guarantees:
+
+- callers cannot select redirect mode
+- initial obvious local/private targets are rejected before fetch
+- returned content from an obvious local/private final URL is rejected before body read
+- timeout and byte limits remain active through browser-followed redirects
+
+It does **not** guarantee that the browser made no connection to a redirect target before final-URL validation. It also does not solve DNS rebinding or inspect resolved IP addresses. Complete network-layer SSRF prevention would require a different transport or browser capability that can validate resolved destinations before connection.
 
 ## Resource Bounds
 
 Initial defaults:
 
 - timeout: 15 seconds
-- maximum redirects: 5
 - maximum decoded source bytes: 5 MiB
 
 The response cap is enforced against both `Content-Length` when present and actual streamed bytes. Readers receive a clear error instead of allowing unbounded service-worker memory growth.
 
 ## Module Structure
 
-Create `src/background/page-fetch.js` containing pure or dependency-injected functions:
+`src/background/page-fetch.js` contains pure or dependency-injected functions:
 
 - `normalizePageFetchRequest(url, options)`
 - `isBlockedPageFetchHostname(hostname)`
 - `readResponseBytes(response, maxBytes)`
 - `fetchPageContent(url, options, dependencies?)`
 
-`src/background/index.js` will import and re-export `fetchPageContent` to preserve its existing module interface.
+`src/background/index.js` imports and re-exports `fetchPageContent` to preserve its existing module interface.
 
 ## Compatibility
 
 ### Chrome and Firefox
 
-The sender gate uses the existing Agent 1 runtime policy and the exact content-script hosts declared in the manifest. Public page reading, search, Twitter, YouTube metadata, and pricing remain GET-based.
+The sender gate uses the existing Agent 1 runtime policy and the exact content-script hosts declared in the manifest. Public page reading, search, Twitter, YouTube metadata, and pricing remain GET-based. Browser-standard redirect following is preserved.
 
 ### Android
 
@@ -140,16 +150,20 @@ Cover:
 - public HTTPS and HTTP URLs
 - forced GET and omitted credentials
 - retained safe search headers
-- stripped authorization, cookie, body, and unsafe methods
+- stripped authorization, cookie, and unknown headers
+- rejected request bodies and unsafe methods
 - no-store cache compatibility
-- rejected unsupported protocols
+- rejected unsupported protocols and URL credentials
 - rejected localhost, `.local`, IPv4 private/reserved ranges, IPv6 loopback/link-local/ULA, and cloud metadata literals
-- redirect target validation
+- browser-follow redirect mode
+- accepted public final response URLs
+- rejected blocked final response URLs before body read
 - response-size enforcement
+- timeout cancellation
 
 ### Background router regression tests
 
-Source-level assertions will lock:
+Source-level assertions lock:
 
 - import of `isTrustedRuntimeSender`
 - recognized-type classification before sender validation
@@ -159,6 +173,7 @@ Source-level assertions will lock:
 ## Deferred Risks
 
 - DNS rebinding and resolved-IP inspection
+- pre-connection redirect target validation
 - MCP arbitrary server URL and API-key transport policy
 - GitHub ZIP size/output limits
 - YouTube transcript library response limits
