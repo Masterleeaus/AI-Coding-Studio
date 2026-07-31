@@ -110,3 +110,32 @@ test('rejects oversized command results', async () => {
   assert.equal(response.ok, false);
   assert.equal(response.error.code, 'RESULT_TOO_LARGE');
 });
+
+test('rejects a registration that downgrades the catalog risk level', () => {
+  const registry = createCommandRegistry();
+  assert.throws(
+    () => registry.register({
+      command: COMMANDS.GIT_PUSH,
+      riskLevel: RISK_LEVELS.READ,
+      handler: async () => ({ pushed: true }),
+    }),
+    (error) => error.code === 'RISK_LEVEL_MISMATCH',
+  );
+});
+
+test('requires a repository ID for repository-scoped commands', async () => {
+  const registry = createCommandRegistry();
+  registry.register({
+    command: COMMANDS.FILES_READ,
+    riskLevel: RISK_LEVELS.READ,
+    handler: async () => ({ content: '' }),
+  });
+  const response = await registry.dispatch({
+    version: 1,
+    requestId: 'req-no-repo',
+    command: COMMANDS.FILES_READ,
+    parameters: { path: 'README.md' },
+  });
+  assert.equal(response.ok, false);
+  assert.equal(response.error.code, 'REPOSITORY_REQUIRED');
+});
