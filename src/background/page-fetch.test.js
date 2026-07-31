@@ -14,6 +14,14 @@ function textResponse(text, init = {}) {
   });
 }
 
+function withResponseUrl(response, url) {
+  Object.defineProperty(response, "url", {
+    configurable: true,
+    value: url,
+  });
+  return response;
+}
+
 describe("normalizePageFetchRequest", () => {
   it.each([
     "https://example.com/article",
@@ -26,7 +34,7 @@ describe("normalizePageFetchRequest", () => {
       method: "GET",
       credentials: "omit",
       cache: "default",
-      redirect: "manual",
+      redirect: "follow",
     });
   });
 
@@ -44,7 +52,7 @@ describe("normalizePageFetchRequest", () => {
       },
       cache: "no-store",
       credentials: "include",
-      redirect: "follow",
+      redirect: "manual",
     });
 
     expect(request.fetchOptions.headers).toEqual({
@@ -55,7 +63,7 @@ describe("normalizePageFetchRequest", () => {
     });
     expect(request.fetchOptions.cache).toBe("no-store");
     expect(request.fetchOptions.credentials).toBe("omit");
-    expect(request.fetchOptions.redirect).toBe("manual");
+    expect(request.fetchOptions.redirect).toBe("follow");
   });
 
   it.each(["POST", "PUT", "PATCH", "DELETE"])(
@@ -173,54 +181,36 @@ describe("fetchPageContent", () => {
       expect.objectContaining({
         method: "GET",
         credentials: "omit",
-        redirect: "manual",
+        redirect: "follow",
         signal: expect.any(AbortSignal),
       }),
     );
   });
 
-  it("follows a validated public redirect", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, {
-        status: 302,
-        headers: { Location: "https://www.example.com/final" },
-      }))
-      .mockResolvedValueOnce(textResponse("final"));
+  it("accepts a public final response URL after browser-followed redirects", async () => {
+    const response = withResponseUrl(
+      textResponse("final"),
+      "https://www.example.com/final",
+    );
+    const fetchImpl = vi.fn(async () => response);
 
     const result = await fetchPageContent("https://example.com/start", {}, { fetch: fetchImpl });
 
     expect(result.url).toBe("https://www.example.com/final");
     expect(result.html).toBe("final");
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-  });
-
-  it("rejects a redirect to a blocked target before a second fetch", async () => {
-    const fetchImpl = vi.fn(async () => new Response(null, {
-      status: 302,
-      headers: { Location: "http://127.0.0.1/admin" },
-    }));
-
-    await expect(fetchPageContent("https://example.com/start", {}, { fetch: fetchImpl }))
-      .rejects.toThrow(/blocked/i);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects redirect chains over the configured limit", async () => {
-    const fetchImpl = vi.fn(async (url) => {
-      const current = new URL(url);
-      const hop = Number(current.searchParams.get("hop") || 0);
-      return new Response(null, {
-        status: 302,
-        headers: { Location: `https://example.com/?hop=${hop + 1}` },
-      });
-    });
+  it("rejects a blocked final response URL before reading its body", async () => {
+    const response = withResponseUrl(
+      textResponse("private content"),
+      "http://127.0.0.1/admin",
+    );
+    const fetchImpl = vi.fn(async () => response);
 
-    await expect(fetchPageContent("https://example.com/?hop=0", {}, {
-      fetch: fetchImpl,
-      maxRedirects: 2,
-    })).rejects.toThrow(/redirect/i);
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    await expect(fetchPageContent("https://example.com/start", {}, { fetch: fetchImpl }))
+      .rejects.toThrow(/blocked/i);
+    expect(response.bodyUsed).toBe(false);
   });
 
   it("aborts a page fetch after the configured timeout", async () => {
