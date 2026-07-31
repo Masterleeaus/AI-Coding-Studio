@@ -2,6 +2,7 @@ import "./api-proxy.js";
 import { fetchPageContent } from "./page-fetch.js";
 import { isTrustedRuntimeSender } from "./runtime-policy.js";
 import { fetchTranscript } from "youtube-transcript";
+import { trackProgress, trackedFetch } from "./progress-tracker.js";
 import {
   DEFAULT_GITHUB_COMMIT_COUNT,
   GITHUB_COMMITS_PAGE_SIZE,
@@ -43,7 +44,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "bds-get-youtube-transcript") {
-    fetchTranscript(message.videoId)
+    trackProgress(
+      'background-youtube',
+      'fetch-transcript',
+      `Fetching transcript for video ${message.videoId}`,
+      () => fetchTranscript(message.videoId)
+    )
       .then((transcript) => {
         sendResponse({ ok: true, transcript });
       })
