@@ -1,4 +1,4 @@
-name: Apply Verified Dependency Remediation
+name: Diagnose Verified Dependency Candidate
 
 on:
   push:
@@ -8,57 +8,38 @@ on:
       - .github/workflows/remediate-dependencies.yml
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
-concurrency:
-  group: dependency-security-remediation
-  cancel-in-progress: false
-
 jobs:
-  remediate:
+  diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Check out isolated remediation branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent-3/dependency-security-remediation
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Set up Gradle 8.7
-        uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.7"
           cache-provider: basic
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Firefox
-        id: setup-firefox
+      - uses: android-actions/setup-android@v3
+      - id: setup_firefox
         uses: browser-actions/setup-firefox@v1
         with:
           firefox-version: latest
 
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Apply the proven dependency candidate
+      - id: candidate
+        continue-on-error: true
         run: |
+          npm ci
           npm remove xlsx
           npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
           npm install --save-dev vitest@4.1.10 @vitest/coverage-v8@4.1.10 @vitest/ui@4.1.10
@@ -66,55 +47,58 @@ jobs:
           rm -rf node_modules
           npm ci
 
-      - name: Enforce zero high-severity advisories
+      - id: audit
+        continue-on-error: true
         run: npm audit --audit-level=high
 
-      - name: Verify shared contracts and unit suite
+      - id: shared
+        continue-on-error: true
         run: |
           npm run check-locales
           npm run test:contracts
           npm run test:unit
 
-      - name: Install Playwright Chromium
+      - id: playwright
+        continue-on-error: true
         run: npx playwright install --with-deps chromium
 
-      - name: Verify Chrome target
+      - id: chrome
+        continue-on-error: true
         run: |
           npm run build:chrome
           unzip -t better-deepseek-chrome.zip
           npm run test:e2e
 
-      - name: Verify Firefox target
+      - id: firefox
+        continue-on-error: true
         env:
-          FIREFOX_BIN: ${{ steps.setup-firefox.outputs.firefox-path }}
+          FIREFOX_BIN: ${{ steps.setup_firefox.outputs.firefox-path }}
         run: |
           npm run build:firefox
           unzip -t better-deepseek-firefox.zip
           npm run test:e2e:firefox
 
-      - name: Verify Android JavaScript and WebView target
+      - id: android_web
+        continue-on-error: true
         run: |
           npm run build:android
           npm run test:e2e:android
 
-      - name: Verify Android native build and tests
+      - id: android_native
+        continue-on-error: true
         run: |
           gradle -p android --no-daemon assembleDebug --stacktrace
           gradle -p android --no-daemon test --stacktrace
 
-      - name: Remove one-shot workflow
-        run: git rm .github/workflows/remediate-dependencies.yml
-
-      - name: Commit fully verified package and lockfile changes
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json package-lock.json .github/workflows/remediate-dependencies.yml
-          git commit -m 'fix(deps): remediate audited dependency vulnerabilities'
-          git push origin HEAD:agent-3/dependency-security-remediation
-
-      - name: Record verified result on draft PR
+      - if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr comment 8 --body 'Verified dependency remediation committed: zero high-severity npm advisories; shared contracts, unit tests, Chrome, Firefox, Android WebView, APK assembly, and Android Gradle tests all passed in the commit-producing workflow.'
+          CANDIDATE: ${{ steps.candidate.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+          SHARED: ${{ steps.shared.outcome }}
+          PLAYWRIGHT: ${{ steps.playwright.outcome }}
+          CHROME: ${{ steps.chrome.outcome }}
+          FIREFOX: ${{ steps.firefox.outcome }}
+          ANDROID_WEB: ${{ steps.android_web.outcome }}
+          ANDROID_NATIVE: ${{ steps.android_native.outcome }}
+        run: gh pr comment 8 --body "Full dependency candidate matrix — candidate: ${CANDIDATE}; audit: ${AUDIT}; shared: ${SHARED}; Playwright: ${PLAYWRIGHT}; Chrome: ${CHROME}; Firefox: ${FIREFOX}; Android WebView: ${ANDROID_WEB}; Android native: ${ANDROID_NATIVE}. This diagnostic made no repository content changes."
