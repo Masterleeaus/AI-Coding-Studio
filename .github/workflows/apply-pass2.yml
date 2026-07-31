@@ -1,0 +1,51 @@
+name: Apply AI Coding Studio Pass 02
+
+on:
+  push:
+    branches:
+      - refactor/local-ai-development-os-pass2
+    paths:
+      - .github/workflows/apply-pass2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-coding-studio-pass02
+  cancel-in-progress: false
+
+jobs:
+  apply-pass02:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Pass 02 branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/local-ai-development-os-pass2
+          fetch-depth: 0
+
+      - name: Apply checksum-verified Pass 02 delta
+        run: python .github/pass2/apply_pass02.py
+
+      - name: Verify architecture migration
+        run: |
+          set -euo pipefail
+          npm run test:architecture
+          npm run check:architecture
+          npm run check:imports
+          npm run check-locales
+          git diff --check
+
+      - name: Commit Pass 02 migration
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Pass 02 delta already applied.'
+            exit 0
+          fi
+          git commit -m 'refactor: establish local AI development OS runtime'
+          git push origin HEAD:refactor/local-ai-development-os-pass2
