@@ -1,0 +1,196 @@
+name: Extension Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+      - integration/local-first-repair
+  push:
+    branches:
+      - integration/local-first-repair
+      - agent-1/**
+      - agent-2/**
+      - agent-3/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts-and-locales:
+    name: Contracts and locales
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check locale parity
+        run: npm run check-locales
+
+      - name: Run shared workflow contract tests
+        run: npm run test:contracts
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit
+
+      - name: Upload unit coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+  browser-builds:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - chrome
+          - firefox
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension target
+        run: npm run build:${{ matrix.target }}
+
+      - name: Validate generated archive
+        run: unzip -t better-deepseek-${{ matrix.target }}.zip
+
+      - name: Upload extension archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ matrix.target }}
+          path: better-deepseek-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  chrome-e2e:
+    name: Chrome-target Chromium E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Chrome target
+        run: npm run build:chrome
+
+      - name: Run Chrome-target E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-chromium-report
+          path: playwright-report/
+          if-no-files-found: ignore
+
+  firefox-e2e:
+    name: Firefox E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Firefox
+        id: setup-firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Firefox target
+        run: npm run build:firefox
+
+      - name: Run Firefox E2E tests
+        env:
+          FIREFOX_BIN: ${{ steps.setup-firefox.outputs.firefox-path }}
+        run: npm run test:e2e:firefox
+
+      - name: Upload Firefox results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-test-results
+          path: test-results-firefox/
+          if-no-files-found: ignore
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit high-severity dependency issues
+        run: npm audit --audit-level=high
