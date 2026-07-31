@@ -39,11 +39,29 @@ describe("isTrustedRuntimeSender", () => {
     }, RUNTIME_ID)).toBe(false);
   });
 
-  it("rejects an unsupported host page", () => {
+  it.each([
+    "https://example.com/",
+    "https://openai.com.evil.example/",
+  ])("rejects unsupported or look-alike host %s", (url) => {
     expect(isTrustedRuntimeSender({
       id: RUNTIME_ID,
-      url: "https://example.com/",
+      url,
       tab: { id: 1 },
+    }, RUNTIME_ID)).toBe(false);
+  });
+
+  it("rejects a supported host over insecure HTTP", () => {
+    expect(isTrustedRuntimeSender({
+      id: RUNTIME_ID,
+      url: "http://chat.deepseek.com/",
+      tab: { id: 1 },
+    }, RUNTIME_ID)).toBe(false);
+  });
+
+  it("rejects a host-page URL without content-script tab context", () => {
+    expect(isTrustedRuntimeSender({
+      id: RUNTIME_ID,
+      url: "https://chat.deepseek.com/",
     }, RUNTIME_ID)).toBe(false);
   });
 
