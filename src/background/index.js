@@ -1,4 +1,6 @@
 import "./api-proxy.js";
+import { fetchPageContent } from "./page-fetch.js";
+import { isTrustedRuntimeSender } from "./runtime-policy.js";
 import { fetchTranscript } from "youtube-transcript";
 import {
   DEFAULT_GITHUB_COMMIT_COUNT,
@@ -13,8 +15,32 @@ export {
 
 export { fetchPageContent };
 
+const BACKGROUND_MESSAGE_TYPES = new Set([
+  "bds-get-youtube-transcript",
+  "bds-fetch-github-zip",
+  "bds-fetch-github-commits",
+  "bds-fetch-url",
+  "BDS_UPDATE_LANGUAGES",
+  "BDS_WAIT_FOR_STARTUP",
+  "BDS_RESET_LANGUAGES",
+  "bds-mcp-list-tools",
+  "bds-mcp-call",
+]);
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) return false;
+  if (!message?.type || !BACKGROUND_MESSAGE_TYPES.has(message.type)) {
+    return false;
+  }
+
+  if (!isTrustedRuntimeSender(sender, chrome.runtime.id)) {
+    sendResponse({
+      ok: false,
+      success: false,
+      error: "Untrusted runtime sender.",
+      status: 0,
+    });
+    return false;
+  }
 
   if (message.type === "bds-get-youtube-transcript") {
     fetchTranscript(message.videoId)
@@ -74,7 +100,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "bds-fetch-url") {
     fetchPageContent(message.url, message.options)
       .then((result) => {
-        sendResponse({ ok: true, html: result.html, status: result.status });
+        sendResponse({
+          ok: true,
+          html: result.html,
+          status: result.status,
+          url: result.url,
+        });
       })
       .catch((error) => {
         sendResponse({
@@ -129,8 +160,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return false;
 });
-
-
 
 function bytesToBase64(bytes) {
   let binary = "";
@@ -380,76 +409,6 @@ export async function fetchGithubCommits(owner, repo, branch, count, token) {
   }
 
   return commits;
-}
-
-/**
- * Detect character encoding from HTTP headers or HTML meta tags.
- * Returns a charset string or null if none is found.
- */
-function detectCharsetFromHeaders(resp) {
-  const contentType = resp.headers.get("content-type");
-  if (!contentType) return null;
-  const match = contentType.match(/charset\s*=\s*([^\s;]+)/i);
-  return match ? match[1].trim().replace(/^["']|["']$/g, "") : null;
-}
-
-function detectCharsetFromHtml(buffer) {
-  const scanView = new TextDecoder("latin1").decode(buffer.slice(0, 10240));
-
-  let match = scanView.match(/<meta[\s>][^>]*charset\s*=\s*["']?\s*([a-zA-Z0-9_-]+)\s*["']?[^>]*\/?>/i);
-  if (match) return match[1];
-
-  match = scanView.match(/<meta\s+http-equiv\s*=\s*["']?\s*Content-Type\s*["']?\s*content\s*=\s*["'][^"']*charset\s*=\s*([a-zA-Z0-9_-]+)/i);
-  if (match) return match[1];
-
-  return null;
-}
-
-async function fetchPageContent(url, options = {}) {
-  if (!url) throw new Error("No URL provided.");
-  const safeOptions = options && typeof options === "object" ? options : {};
-
-  const fetchOptions = {
-    method: safeOptions.method || "GET",
-    headers: safeOptions.headers || {},
-  };
-
-  if (safeOptions.body) {
-    fetchOptions.body = safeOptions.body;
-  }
-
-  if (safeOptions.cache) {
-    fetchOptions.cache = safeOptions.cache;
-  }
-  if (safeOptions.credentials) {
-    fetchOptions.credentials = safeOptions.credentials;
-  }
-  if (safeOptions.redirect) {
-    fetchOptions.redirect = safeOptions.redirect;
-  }
-
-  const resp = await fetch(url, fetchOptions);
-  if (!resp.ok) {
-    const error = new Error(`Server returned ${resp.status} for ${url}`);
-    error.status = resp.status;
-    throw error;
-  }
-
-  const buffer = await resp.arrayBuffer();
-
-  let charset = detectCharsetFromHeaders(resp);
-  if (!charset) {
-    charset = detectCharsetFromHtml(buffer);
-  }
-
-  let html;
-  try {
-    html = new TextDecoder(charset || "utf-8", { fatal: false }).decode(buffer);
-  } catch {
-    html = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
-  }
-
-  return { html, status: resp.status };
 }
 
 // Open chat.deepseek.com when the extension toolbar icon is clicked
