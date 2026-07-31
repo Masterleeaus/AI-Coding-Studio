@@ -1,0 +1,137 @@
+name: Dependency Remediation Verification
+
+on:
+  pull_request:
+    branches:
+      - agent-3/workflows-tests-integration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-remediation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SHEETJS_TARBALL: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+  VITEST_VERSION: 4.1.10
+
+jobs:
+  shared:
+    name: Audit, contracts, unit and XLSX round trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Build exact dependency candidate
+        run: |
+          npm ci
+          npm remove xlsx
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
+          npm audit fix || true
+          rm -rf node_modules
+          npm ci
+      - name: Enforce high-severity audit gate
+        run: npm audit --audit-level=high
+      - name: Verify locales, workflow contracts and unit suite
+        run: |
+          npm run check-locales
+          npm run test:contracts
+          npm run test:unit
+
+  browsers:
+    name: Chrome and Firefox builds and startup smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - id: setup-firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+      - name: Build exact dependency candidate
+        run: |
+          npm ci
+          npm remove xlsx
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
+          npm audit fix || true
+          rm -rf node_modules
+          npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify Chrome target
+        run: |
+          npm run build:chrome
+          unzip -t better-deepseek-chrome.zip
+          npm run test:e2e
+      - name: Verify Firefox target
+        env:
+          FIREFOX_BIN: ${{ steps.setup-firefox.outputs.firefox-path }}
+        run: |
+          npm run build:firefox
+          unzip -t better-deepseek-firefox.zip
+          npm run test:e2e:firefox
+
+  android:
+    name: Android WebView, APK and Gradle tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+          cache-provider: basic
+      - uses: android-actions/setup-android@v3
+      - name: Build exact dependency candidate
+        run: |
+          npm ci
+          npm remove xlsx
+          npm install --save "$SHEETJS_TARBALL"
+          npm install --save-dev \
+            "vitest@$VITEST_VERSION" \
+            "@vitest/coverage-v8@$VITEST_VERSION" \
+            "@vitest/ui@$VITEST_VERSION"
+          npm audit fix || true
+          rm -rf node_modules
+          npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify Android WebView target
+        run: |
+          npm run build:android
+          npm run test:e2e:android
+      - name: Record Android task graph
+        working-directory: android
+        run: gradle --no-daemon tasks --all --console=plain
+      - name: Build debug APK
+        working-directory: android
+        run: gradle --no-daemon assembleDebug --stacktrace --console=plain
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle --no-daemon test --stacktrace --console=plain
