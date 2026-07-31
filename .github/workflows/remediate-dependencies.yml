@@ -1,0 +1,75 @@
+name: Remediate Audited Dependencies
+
+on:
+  push:
+    branches:
+      - agent-3/dependency-security-remediation
+    paths:
+      - .github/workflows/remediate-dependencies.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-security-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    name: Refresh, verify and commit dependency lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out isolated remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent-3/dependency-security-remediation
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Replace obsolete npm SheetJS release with official maintained distribution
+        run: |
+          npm remove xlsx
+          npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+
+      - name: Apply compatible npm advisory fixes
+        run: npm audit fix
+
+      - name: Verify reproducible clean install
+        run: |
+          rm -rf node_modules
+          npm ci
+
+      - name: Enforce high-severity audit gate
+        run: npm audit --audit-level=high
+
+      - name: Run shared verification
+        run: |
+          npm run check-locales
+          npm run test:contracts
+          npm run test:unit
+          npm run build:chrome
+          unzip -t better-deepseek-chrome.zip
+          npm run build:firefox
+          unzip -t better-deepseek-firefox.zip
+
+      - name: Remove one-shot workflow
+        run: git rm .github/workflows/remediate-dependencies.yml
+
+      - name: Commit verified dependency remediation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json .github/workflows/remediate-dependencies.yml
+          git commit -m 'fix(deps): remediate audited dependency vulnerabilities'
+          git push origin HEAD:agent-3/dependency-security-remediation
