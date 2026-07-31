@@ -49,6 +49,7 @@ export const COMMANDS = Object.freeze({
 const KNOWN_COMMANDS = new Set(Object.values(COMMANDS));
 const KNOWN_RISK_LEVELS = new Set(Object.values(RISK_LEVELS));
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const DANGEROUS_JSON_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
 export class BridgeContractError extends Error {
   constructor(code, message) {
@@ -91,6 +92,9 @@ function cloneJsonValue(value, seen = new WeakSet(), depth = 0) {
     }
     const output = {};
     for (const [key, entry] of Object.entries(value)) {
+      if (DANGEROUS_JSON_KEYS.has(key)) {
+        throw new BridgeContractError('INVALID_JSON_KEY', `Unsupported JSON object key: ${key}`);
+      }
       output[key] = cloneJsonValue(entry, seen, depth + 1);
     }
     return output;
