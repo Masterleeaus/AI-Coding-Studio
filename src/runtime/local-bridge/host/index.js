@@ -35,6 +35,37 @@ export {
   createNativeHostManifest,
 } from './native-host-manifest.js';
 export {
+  HostConfigError,
+  getDefaultHostConfigPath,
+  loadHostConfig,
+  validateHostConfig,
+} from './host-config.js';
+export {
+  HostRuntimeError,
+  createNativeHostRuntime,
+  startNativeHostRuntime,
+} from './host-runtime.js';
+export {
+  HostEntryError,
+  parseHostEntryArguments,
+  runHostEntry,
+  writeFatalDiagnostic,
+} from './host-entry.js';
+export {
+  NativeHostLocationError,
+  getPerUserManifestLocation,
+} from './installer/native-host-locations.js';
+export {
+  RegistrationPlanError,
+  createRegistrationPlan,
+  createUninstallPlan,
+} from './installer/registration-plan.js';
+export { inspectNativeHostInstallation } from './installer/native-host-doctor.js';
+export {
+  DoctorCliError,
+  parseDoctorArguments,
+} from './installer/doctor-cli.js';
+export {
   registerFilesystemReadAdapters,
   registerGitReadAdapters,
   registerReadOnlyAdapters,
