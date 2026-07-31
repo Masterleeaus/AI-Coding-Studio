@@ -66,6 +66,24 @@ export function createApprovalRecord({
   return record;
 }
 
+export function consumeApproval(approval, consumedAt = Date.now()) {
+  if (!approval || typeof approval !== "object") {
+    throw new TypeError("approval record is required");
+  }
+  if (approval.status !== "GRANTED" || approval.consumedAt != null) {
+    throw new Error("Approval is not available for consumption");
+  }
+  const timestamp = Number(consumedAt);
+  if (!Number.isFinite(timestamp)) {
+    throw new TypeError("consumedAt must be a finite timestamp");
+  }
+  return {
+    ...approval,
+    status: "CONSUMED",
+    consumedAt: timestamp,
+  };
+}
+
 export function evaluateApproval({
   risk,
   repository,
