@@ -5,8 +5,8 @@ import shutil
 import urllib.request
 from pathlib import Path, PurePosixPath
 
-BASE_URL = "https://incalculable-eventide.miniup.app"
-HASH_LIST_SHA256 = "c10b5c0cf0fb98c33638b8fcfc788bf5f671e323a834b4c739ac2373dcba0f31"
+BASE_URL = "https://cool-computer.miniup.app"
+HASH_LIST_SHA256 = "03956316ae88f574fb08b6f24f86af2219dee426c236c792b3319a0f242080b5"
 ROOT = Path(__file__).resolve().parents[2]
 STAGING = ROOT / ".pass02-staging"
 
