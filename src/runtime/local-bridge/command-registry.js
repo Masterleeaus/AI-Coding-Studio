@@ -39,6 +39,13 @@ export function createCommandRegistry(options = {}) {
   const timeoutMs = options.timeoutMs === undefined ? 30000 : options.timeoutMs;
   const maxResultBytes = options.maxResultBytes === undefined ? 1000000 : options.maxResultBytes;
   const approvalVerifier = options.approvalVerifier === undefined ? null : options.approvalVerifier;
+  const requestAuthenticator = options.requestAuthenticator === undefined
+    ? null
+    : options.requestAuthenticator;
+  const repositoryAuthorizer = options.repositoryAuthorizer === undefined
+    ? null
+    : options.repositoryAuthorizer;
+
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000) {
     throw new RangeError('timeoutMs must be an integer between 1 and 300000.');
   }
@@ -47,6 +54,12 @@ export function createCommandRegistry(options = {}) {
   }
   if (approvalVerifier !== null && typeof approvalVerifier !== 'function') {
     throw new TypeError('approvalVerifier must be a function when provided.');
+  }
+  if (requestAuthenticator !== null && typeof requestAuthenticator !== 'function') {
+    throw new TypeError('requestAuthenticator must be a function when provided.');
+  }
+  if (repositoryAuthorizer !== null && typeof repositoryAuthorizer !== 'function') {
+    throw new TypeError('repositoryAuthorizer must be a function when provided.');
   }
 
   function appendLog({ request, definition, startedAt, outcome, error }) {
@@ -108,18 +121,26 @@ export function createCommandRegistry(options = {}) {
     },
 
     list() {
-      return [...definitions.values()].map(({ command, riskLevel, repositoryRequired }) => ({ command, riskLevel, repositoryRequired }));
+      return [...definitions.values()].map(({ command, riskLevel, repositoryRequired }) => ({
+        command,
+        riskLevel,
+        repositoryRequired,
+      }));
     },
 
-    async dispatch(rawRequest) {
+    async dispatch(rawRequest, transportContext = {}) {
       const startedAt = clock();
       let request = {
         requestId: typeof rawRequest?.requestId === 'string' ? rawRequest.requestId : 'unknown',
         command: typeof rawRequest?.command === 'string' ? rawRequest.command : null,
         repositoryId: typeof rawRequest?.repositoryId === 'string' ? rawRequest.repositoryId : null,
-        parameters: rawRequest?.parameters && typeof rawRequest.parameters === 'object' ? rawRequest.parameters : {},
+        parameters: rawRequest?.parameters && typeof rawRequest.parameters === 'object'
+          ? rawRequest.parameters
+          : {},
       };
       let definition = null;
+      let identity = null;
+      let repository = null;
 
       try {
         request = validateBridgeRequest(rawRequest);
@@ -128,6 +149,19 @@ export function createCommandRegistry(options = {}) {
         const message = safeErrorMessage(error);
         appendLog({ request, definition, startedAt, outcome: 'error', error: message });
         return createErrorResponse(request.requestId, code, message);
+      }
+
+      if (requestAuthenticator) {
+        try {
+          identity = await requestAuthenticator(Object.freeze({ request, transportContext }));
+          if (!identity || typeof identity !== 'object') {
+            throw new Error('Authenticator did not return an identity.');
+          }
+        } catch {
+          const message = 'Request authentication failed.';
+          appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
+          return createErrorResponse(request.requestId, 'AUTHENTICATION_FAILED', message);
+        }
       }
 
       definition = definitions.get(request.command) || null;
@@ -143,6 +177,19 @@ export function createCommandRegistry(options = {}) {
         return createErrorResponse(request.requestId, 'REPOSITORY_REQUIRED', message);
       }
 
+      if (definition.repositoryRequired && repositoryAuthorizer) {
+        try {
+          repository = await repositoryAuthorizer(Object.freeze({ request, identity }));
+          if (!repository || typeof repository !== 'object') {
+            throw new Error('Repository authorizer did not return a repository record.');
+          }
+        } catch {
+          const message = 'Repository is not allowlisted.';
+          appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
+          return createErrorResponse(request.requestId, 'REPOSITORY_NOT_ALLOWED', message);
+        }
+      }
+
       let approved = !requiresExplicitApproval(definition.riskLevel);
       if (!approved && approvalVerifier) {
         try {
@@ -152,11 +199,17 @@ export function createCommandRegistry(options = {}) {
             repositoryId: request.repositoryId,
             riskLevel: definition.riskLevel,
             approval: request.approval,
+            identity,
+            repository,
           })) === true;
         } catch (error) {
           const message = safeErrorMessage(error);
           appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
-          return createErrorResponse(request.requestId, 'APPROVAL_VERIFICATION_FAILED', 'Approval verification failed.');
+          return createErrorResponse(
+            request.requestId,
+            'APPROVAL_VERIFICATION_FAILED',
+            'Approval verification failed.',
+          );
         }
       }
       if (!approved) {
@@ -186,6 +239,8 @@ export function createCommandRegistry(options = {}) {
           repositoryId: request.repositoryId,
           parameters,
           riskLevel: definition.riskLevel,
+          identity,
+          repository,
           signal: controller.signal,
         })));
         const timeoutPromise = new Promise((_, reject) => {
