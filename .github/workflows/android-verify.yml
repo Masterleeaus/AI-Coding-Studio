@@ -44,13 +44,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+          cache-provider: basic
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
 
       - name: Install JavaScript dependencies
         run: npm ci
@@ -65,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node scripts/run-android-gradle.js assembleDebug --stacktrace --info 2>&1 | tee android/assemble-debug.log
+          gradle -p android --no-daemon assembleDebug --stacktrace --info 2>&1 | tee android/assemble-debug.log
 
       - name: Run Android simulator parity tests
         run: npm run test:e2e:android
@@ -74,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node scripts/run-android-gradle.js test --stacktrace 2>&1 | tee android/gradle-tests.log
+          gradle -p android --no-daemon test --stacktrace 2>&1 | tee android/gradle-tests.log
 
       - name: Upload Android artefacts and diagnostics
         if: always()
