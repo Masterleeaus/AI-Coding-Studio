@@ -1,4 +1,4 @@
-name: Diagnose Audited Dependencies
+name: Apply Verified Dependency Remediation
 
 on:
   push:
@@ -8,93 +8,113 @@ on:
       - .github/workflows/remediate-dependencies.yml
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
+concurrency:
+  group: dependency-security-remediation
+  cancel-in-progress: false
+
 jobs:
-  diagnose:
+  remediate:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out isolated remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent-3/dependency-security-remediation
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-      - name: Build remediation candidate in runner workspace
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.7"
+          cache-provider: basic
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Firefox
+        id: setup-firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply the proven dependency candidate
         run: |
           npm remove xlsx
           npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-          npm install --save-dev vitest@latest @vitest/coverage-v8@latest @vitest/ui@latest
+          npm install --save-dev vitest@4.1.10 @vitest/coverage-v8@4.1.10 @vitest/ui@4.1.10
           npm audit fix || true
           rm -rf node_modules
           npm ci
 
-      - name: Capture candidate versions and audit
-        run: |
-          npm ls vitest @vitest/coverage-v8 @vitest/ui xlsx --depth=0 --json > /tmp/dependency-versions.json
-          npm audit --json > /tmp/dependency-audit.json || true
+      - name: Enforce zero high-severity advisories
+        run: npm audit --audit-level=high
 
-      - name: Run candidate verification
-        shell: bash
+      - name: Verify shared contracts and unit suite
         run: |
-          set +e
-          status=success
-          npm run check-locales || status=failure
-          npm run test:contracts || status=failure
-          npm run test:unit || status=failure
-          npm run build:chrome || status=failure
-          unzip -t better-deepseek-chrome.zip || status=failure
-          npm run build:firefox || status=failure
-          unzip -t better-deepseek-firefox.zip || status=failure
-          printf '%s\n' "$status" > /tmp/dependency-verification-status.txt
-          exit 0
+          npm run check-locales
+          npm run test:contracts
+          npm run test:unit
 
-      - name: Format candidate diagnostic
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Chrome target
         run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const report = JSON.parse(readFileSync('/tmp/dependency-audit.json', 'utf8'));
-          const versions = JSON.parse(readFileSync('/tmp/dependency-versions.json', 'utf8'));
-          const status = readFileSync('/tmp/dependency-verification-status.txt', 'utf8').trim();
-          const counts = report.metadata?.vulnerabilities ?? {};
-          const packages = Object.keys(report.vulnerabilities ?? {}).sort();
-          const direct = versions.dependencies ?? {};
-          const versionLines = Object.entries(direct)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([name, data]) => `- \`${name}\`: \`${data.version ?? 'unknown'}\``);
-          const lines = [
-            '## Vitest-family remediation diagnostic',
-            '',
-            'Candidate operations:',
-            '- official SheetJS 0.20.3 CDN tarball',
-            '- latest coordinated `vitest`, `@vitest/coverage-v8`, and `@vitest/ui` releases',
-            '- compatible `npm audit fix` updates',
-            '- clean `npm ci` reinstall',
-            '',
-            'Candidate direct versions:',
-            ...versionLines,
-            '',
-            `Shared verification: **${status}**`,
-            '',
-            'Residual vulnerability counts:',
-            '```json',
-            JSON.stringify(counts, null, 2),
-            '```',
-            '',
-            `Residual packages: ${packages.length ? packages.map((name) => `\`${name}\``).join(', ') : 'none'}`,
-            '',
-            'No package or lockfile changes were committed by this diagnostic run.'
-          ];
-          writeFileSync('/tmp/dependency-audit-comment.md', `${lines.join('\n')}\n`);
-          NODE
+          npm run build:chrome
+          unzip -t better-deepseek-chrome.zip
+          npm run test:e2e
 
-      - name: Post diagnostic to draft PR
+      - name: Verify Firefox target
+        env:
+          FIREFOX_BIN: ${{ steps.setup-firefox.outputs.firefox-path }}
+        run: |
+          npm run build:firefox
+          unzip -t better-deepseek-firefox.zip
+          npm run test:e2e:firefox
+
+      - name: Verify Android JavaScript and WebView target
+        run: |
+          npm run build:android
+          npm run test:e2e:android
+
+      - name: Verify Android native build and tests
+        run: |
+          gradle -p android --no-daemon assembleDebug --stacktrace
+          gradle -p android --no-daemon test --stacktrace
+
+      - name: Remove one-shot workflow
+        run: git rm .github/workflows/remediate-dependencies.yml
+
+      - name: Commit fully verified package and lockfile changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json .github/workflows/remediate-dependencies.yml
+          git commit -m 'fix(deps): remediate audited dependency vulnerabilities'
+          git push origin HEAD:agent-3/dependency-security-remediation
+
+      - name: Record verified result on draft PR
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr comment 8 --body-file /tmp/dependency-audit-comment.md
+        run: |
+          gh pr comment 8 --body 'Verified dependency remediation committed: zero high-severity npm advisories; shared contracts, unit tests, Chrome, Firefox, Android WebView, APK assembly, and Android Gradle tests all passed in the commit-producing workflow.'
