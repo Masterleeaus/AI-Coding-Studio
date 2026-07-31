@@ -1,0 +1,48 @@
+name: Import AI Coding Studio source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download verified source archive
+        run: |
+          curl --fail --location --retry 3 \
+            'https://broken-optician.miniup.app/AI-Coding-Studio-v2.1.0-GitHub-Import.zip' \
+            --output /tmp/ai-coding-studio.zip
+          echo '39173606ca1b8260afb4d009dd81be2ddd3344d1b48f73fd5cde2740e125b381  /tmp/ai-coding-studio.zip' | sha256sum --check --strict
+
+      - name: Extract project into repository root
+        run: |
+          rm -rf /tmp/ai-coding-studio-import
+          mkdir -p /tmp/ai-coding-studio-import
+          unzip -q /tmp/ai-coding-studio.zip -d /tmp/ai-coding-studio-import
+          test -f /tmp/ai-coding-studio-import/AI-Coding-Studio/package.json
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/import-source.yml' \
+            /tmp/ai-coding-studio-import/AI-Coding-Studio/ ./
+          rm -f .repository-initialized
+
+      - name: Commit imported source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Source already imported; no changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Import AI Coding Studio v2.1.0 source and audit'
+          git push
