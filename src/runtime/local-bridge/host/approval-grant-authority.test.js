@@ -26,6 +26,25 @@ test('issues a signed single-use grant bound to the exact operation', () => {
   );
 });
 
+test('accepts opaque base64url session identifiers', () => {
+  const authority = createApprovalGrantAuthority({
+    ttlMs: 1000,
+    secret: Buffer.alloc(32, 7),
+    randomBytes: (size) => Buffer.alloc(size, 6),
+  });
+  for (const sessionId of ['________________________', '------------------------']) {
+    const expected = {
+      sessionId,
+      requestId: `request-${sessionId[0] === '_' ? 'under' : 'dash'}`,
+      command: 'git.push',
+      repositoryId: 'repo-1',
+      riskLevel: 'PUBLISH',
+    };
+    const grant = authority.issue(expected);
+    assert.equal(authority.verifyAndConsume(grant, expected), true);
+  }
+});
+
 test('rejects tampering, binding mismatch and expiry', () => {
   let now = 1000;
   let counter = 4;
