@@ -6,6 +6,7 @@ import {
   validateBridgeRequest,
 } from './protocol.js';
 import { isRiskApproved, requiresExplicitApproval } from '../safety/approval-policy.js';
+import { getCommandDefinition } from './command-catalog.js';
 import { createOperationLog } from './operation-log.js';
 import { redactSecrets } from './secret-filter.js';
 
@@ -67,11 +68,18 @@ export function createCommandRegistry(options = {}) {
       if (!isKnownCommand(definition.command)) {
         throw new CommandRegistryError('UNKNOWN_COMMAND', 'Only approved command identifiers may be registered.');
       }
+      const catalogDefinition = getCommandDefinition(definition.command);
+      if (!catalogDefinition) {
+        throw new CommandRegistryError('UNKNOWN_COMMAND', 'Command has no authoritative catalog definition.');
+      }
       if (definitions.has(definition.command)) {
         throw new CommandRegistryError('DUPLICATE_COMMAND', `Command is already registered: ${definition.command}`);
       }
+      if (definition.riskLevel !== undefined && definition.riskLevel !== catalogDefinition.riskLevel) {
+        throw new CommandRegistryError('RISK_LEVEL_MISMATCH', 'Command risk level cannot override the authoritative catalog.');
+      }
       try {
-        requiresExplicitApproval(definition.riskLevel);
+        requiresExplicitApproval(catalogDefinition.riskLevel);
       } catch (error) {
         throw new CommandRegistryError('INVALID_RISK_LEVEL', error.message);
       }
@@ -83,7 +91,8 @@ export function createCommandRegistry(options = {}) {
       }
       definitions.set(definition.command, Object.freeze({
         command: definition.command,
-        riskLevel: definition.riskLevel,
+        riskLevel: catalogDefinition.riskLevel,
+        repositoryRequired: catalogDefinition.repositoryRequired,
         validateParameters: definition.validateParameters || ((parameters) => parameters),
         handler: definition.handler,
       }));
@@ -95,7 +104,7 @@ export function createCommandRegistry(options = {}) {
     },
 
     list() {
-      return [...definitions.values()].map(({ command, riskLevel }) => ({ command, riskLevel }));
+      return [...definitions.values()].map(({ command, riskLevel, repositoryRequired }) => ({ command, riskLevel, repositoryRequired }));
     },
 
     async dispatch(rawRequest) {
@@ -122,6 +131,12 @@ export function createCommandRegistry(options = {}) {
         const message = 'Command has no registered local handler.';
         appendLog({ request, definition, startedAt, outcome: 'error', error: message });
         return createErrorResponse(request.requestId, 'COMMAND_NOT_REGISTERED', message);
+      }
+
+      if (definition.repositoryRequired && !request.repositoryId) {
+        const message = 'A repositoryId is required for this command.';
+        appendLog({ request, definition, startedAt, outcome: 'error', error: message });
+        return createErrorResponse(request.requestId, 'REPOSITORY_REQUIRED', message);
       }
 
       if (!isRiskApproved(definition.riskLevel, request.approval)) {
