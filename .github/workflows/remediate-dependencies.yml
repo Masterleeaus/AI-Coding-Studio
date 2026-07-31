@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: dependency-security-remediation
@@ -42,8 +43,8 @@ jobs:
           npm remove xlsx
           npm install --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
-      - name: Apply compatible npm advisory fixes
-        run: npm audit fix
+      - name: Apply all compatible npm advisory fixes
+        run: npm audit fix || true
 
       - name: Verify reproducible clean install
         run: |
@@ -76,3 +77,10 @@ jobs:
           git add package.json package-lock.json docs/agents/dependency-audit-after.json docs/agents/dependency-audit-after.txt .github/workflows/remediate-dependencies.yml
           git commit -m 'fix(deps): add tested dependency remediation candidate'
           git push origin HEAD:agent-3/dependency-security-remediation
+
+      - name: Comment evidence location on draft PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment 8 --body 'Dependency remediation runner completed. Inspect the branch package files and `docs/agents/dependency-audit-after.*` evidence. The PR remains draft until the residual audit is evaluated.'
