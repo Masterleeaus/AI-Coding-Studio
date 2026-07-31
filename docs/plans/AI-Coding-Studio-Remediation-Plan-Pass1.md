@@ -1,5 +1,8 @@
 # AI Coding Studio Pass 1 Remediation Implementation Plan
 
+> **Pass 02 architecture amendment:** The ModuleManager migration tasks in this document are superseded by `AI-Coding-Studio-Pass02-Local-AI-Development-OS-Plan.md`. Critical trust-boundary tasks remain valid. The disconnected module-wrapper tree has been removed rather than activated because it duplicated the live content runtime and included no-op or simulated modules.
+
+
 > **For agentic workers:** Implement this plan task-by-task on dedicated branches. Use test-driven development, cohesive commits, verification before completion, and a fresh review gate between tasks.
 
 **Goal:** Remove the critical trust-boundary defects, restore a reliable verification baseline, and create a safe staged path from the active legacy runtime to the modular runtime.

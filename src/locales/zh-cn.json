@@ -181,7 +181,9 @@
       "exitEditMode": "退出编辑模式",
       "noSnippets": "暂无 CSS 片段。",
       "advancedSearchPlaceholder": "搜索设置…",
-      "advancedNoResults": "未找到匹配的设置。"
+      "advancedNoResults": "未找到匹配的设置。",
+      "disableTipBox": "禁用提示框",
+      "disableTipBoxHint": "每次打开抽屉时显示一条随机提示。"
     },
     "skillList": {
       "title": "技能集",
@@ -633,7 +635,7 @@
       "cmdHint": "/命令名（小写，无空格）",
       "add": "添加",
       "categorySnippet": "片段",
-      "autocompleteHint": "Tab \u21b9 补全 \u00b7 \u21b5 执行",
+      "autocompleteHint": "Tab ↹ 补全 · ↵ 执行",
       "cmdSearchDesc": "搜索网页并将结果注入聊天",
       "cmdSearchUsage": "/search <查询>",
       "cmdNewDesc": "开始新对话",
@@ -1083,6 +1085,18 @@
       "betaFeatureDescription": "Beta 端点功能，请谨慎使用。",
       "codeGen": "代码生成",
       "promptSuffix": "提示词后缀"
+    },
+    "tips": {
+      "title": "💡 提示",
+      "disableInSettings": "你可以在设置中关闭此功能。",
+      "0": "要导出聊天，请点击聊天历史中会话旁边的 ... 按钮。",
+      "1": "你可以在设置中禁用此提示框。",
+      "2": "你可以在高级设置中导出当前设置和数据。",
+      "3": "将常用提示保存为片段，并可为片段分配“/”命令以便快速再次发送。",
+      "4": "启用多系统提示模式后，可以同时使用多个系统提示，并设置不同的顺序和条件。",
+      "5": "你可以在记忆部分底部使用导入功能，从其他 AI 导入记忆。",
+      "6": "Better DeepSeek 也提供 Android 应用。",
+      "7": "如需提交功能建议或问题，请使用项目的 GitHub 页面。"
     }
   }
 }

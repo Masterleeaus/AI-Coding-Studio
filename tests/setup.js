@@ -1,59 +1,28 @@
-import { afterEach, beforeEach, vi } from "vitest";
+import { beforeEach, vi } from 'vitest';
 
-// Several content-runtime modules read location.href at import time. Node-based
-// Vitest suites do not create a DOM, so provide the same minimal URL contract
-// before test modules are evaluated. JSDOM suites keep their native Location.
-if (typeof globalThis.location === "undefined") {
-  Object.defineProperty(globalThis, "location", {
-    configurable: true,
-    enumerable: true,
-    writable: true,
-    value: new URL("https://chat.deepseek.com/"),
-  });
-}
-
-function createEventMock() {
-  const listeners = new Set();
-  return {
-    addListener: vi.fn((listener) => listeners.add(listener)),
-    removeListener: vi.fn((listener) => listeners.delete(listener)),
-    hasListener: vi.fn((listener) => listeners.has(listener)),
-    hasListeners: vi.fn(() => listeners.size > 0),
-    _emit: (...args) => {
-      for (const listener of listeners) listener(...args);
-    },
-    _clear: () => listeners.clear(),
-  };
-}
-
-export function createChromeMock() {
+function createChromeMock() {
   const storageData = new Map();
-  const storageChanged = createEventMock();
+  const storageListeners = new Set();
 
-  const local = {
+  const storageLocal = {
     get: vi.fn(async (keys = null) => {
-      if (keys === null) return Object.fromEntries(storageData.entries());
-      const requested = Array.isArray(keys)
-        ? keys
-        : typeof keys === "string"
-          ? [keys]
-          : Object.keys(keys || {});
-      const result = {};
-      for (const key of requested) {
-        if (storageData.has(key)) result[key] = storageData.get(key);
-        else if (keys && typeof keys === "object" && !Array.isArray(keys)) {
-          result[key] = keys[key];
-        }
+      if (keys == null) return Object.fromEntries(storageData);
+      if (typeof keys === 'string') return { [keys]: storageData.get(keys) };
+      if (Array.isArray(keys)) {
+        return Object.fromEntries(keys.filter((key) => storageData.has(key)).map((key) => [key, storageData.get(key)]));
       }
-      return result;
+      if (typeof keys === 'object') {
+        return Object.fromEntries(Object.entries(keys).map(([key, fallback]) => [key, storageData.has(key) ? storageData.get(key) : fallback]));
+      }
+      return {};
     }),
-    set: vi.fn(async (items) => {
+    set: vi.fn(async (values) => {
       const changes = {};
-      for (const [key, value] of Object.entries(items || {})) {
+      for (const [key, value] of Object.entries(values || {})) {
         changes[key] = { oldValue: storageData.get(key), newValue: value };
         storageData.set(key, value);
       }
-      if (Object.keys(changes).length) storageChanged._emit(changes, "local");
+      for (const listener of storageListeners) listener(changes, 'local');
     }),
     remove: vi.fn(async (keys) => {
       for (const key of Array.isArray(keys) ? keys : [keys]) storageData.delete(key);
@@ -63,37 +32,23 @@ export function createChromeMock() {
 
   return {
     runtime: {
-      id: "ai-coding-studio-test",
-      getURL: vi.fn((path = "") => `chrome-extension://ai-coding-studio-test/${path}`),
-      sendMessage: vi.fn(async () => ({ ok: true, success: true })),
-      onMessage: createEventMock(),
-      lastError: null,
+      id: 'ai-coding-studio-test',
+      sendMessage: vi.fn(async () => ({ success: true })),
+      getURL: vi.fn((path) => `chrome-extension://ai-coding-studio-test/${path}`),
+      onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
     },
     storage: {
-      local,
-      onChanged: storageChanged,
-    },
-    tabs: {
-      query: vi.fn(async () => []),
-      create: vi.fn(async (options) => ({ id: 1, ...options })),
-      sendMessage: vi.fn(async () => ({ ok: true })),
-    },
-    downloads: {
-      download: vi.fn(async () => 1),
-    },
-    permissions: {
-      contains: vi.fn(async () => false),
-      request: vi.fn(async () => false),
+      local: storageLocal,
+      onChanged: {
+        addListener: vi.fn((listener) => storageListeners.add(listener)),
+        removeListener: vi.fn((listener) => storageListeners.delete(listener)),
+      },
     },
   };
 }
 
 beforeEach(() => {
-  globalThis.chrome = createChromeMock();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-  vi.restoreAllMocks();
-  delete globalThis.chrome;
+  const chromeMock = createChromeMock();
+  vi.stubGlobal('chrome', chromeMock);
+  if (typeof window !== 'undefined') window.chrome = chromeMock;
 });

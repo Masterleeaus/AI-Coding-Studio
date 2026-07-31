@@ -1,58 +1,59 @@
-import { COMMANDS, RISK_LEVELS } from './protocol.js';
-
-const READ = RISK_LEVELS.READ;
-const EXECUTE = RISK_LEVELS.SAFE_EXECUTION;
-const WRITE = RISK_LEVELS.WRITE;
-const PUBLISH = RISK_LEVELS.PUBLISH;
+import { classifyCommand } from '../safety/approval-policy.js';
 
 const definitions = [
-  [COMMANDS.SYSTEM_HEALTH, READ, false],
-  [COMMANDS.TOOLS_LIST, READ, false],
-  [COMMANDS.REPOSITORIES_DISCOVER, READ, false],
-  [COMMANDS.REPOSITORIES_LIST_GITHUB, READ, false],
-  [COMMANDS.REPOSITORIES_CLONE, WRITE, false],
-  [COMMANDS.FILES_LIST, READ, true],
-  [COMMANDS.FILES_READ, READ, true],
-  [COMMANDS.FILES_WRITE, WRITE, true],
-  [COMMANDS.FILES_HASH, READ, true],
-  [COMMANDS.SEARCH_TEXT, READ, true],
-  [COMMANDS.SEARCH_FILES, READ, true],
-  [COMMANDS.PATCH_PREVIEW, READ, true],
-  [COMMANDS.PATCH_APPLY, WRITE, true],
-  [COMMANDS.GIT_STATUS, READ, true],
-  [COMMANDS.GIT_DIFF, READ, true],
-  [COMMANDS.GIT_LOG, READ, true],
-  [COMMANDS.GIT_BRANCH_CREATE, WRITE, true],
-  [COMMANDS.GIT_BRANCH_SWITCH, WRITE, true],
-  [COMMANDS.GIT_FETCH, WRITE, true],
-  [COMMANDS.GIT_PULL, WRITE, true],
-  [COMMANDS.GIT_COMMIT, WRITE, true],
-  [COMMANDS.GIT_PUSH, PUBLISH, true],
-  [COMMANDS.GITHUB_PR_CREATE, PUBLISH, true],
-  [COMMANDS.GITHUB_PR_VIEW, READ, true],
-  [COMMANDS.GITHUB_PR_CHECKS, READ, true],
-  [COMMANDS.VSCODE_OPEN_REPOSITORY, EXECUTE, true],
-  [COMMANDS.VSCODE_OPEN_FILE, EXECUTE, true],
-  [COMMANDS.TESTS_DETECT, READ, true],
-  [COMMANDS.TESTS_RUN, EXECUTE, true],
-  [COMMANDS.BUILD_DETECT, READ, true],
-  [COMMANDS.BUILD_RUN, EXECUTE, true],
-  [COMMANDS.ARCHIVE_INSPECT, READ, true],
-  [COMMANDS.ARCHIVE_EXTRACT, WRITE, true],
-  [COMMANDS.ARCHIVE_CREATE, WRITE, true],
-  [COMMANDS.ARCHIVE_DELTA, WRITE, true],
+  ['tool.detect', 'bridge', ['tool.discovery']],
+  ['repo.list', 'git', ['repository.discovery']],
+  ['repo.metadata', 'git', ['repository.metadata']],
+  ['file.read', 'filesystem', ['filesystem.read']],
+  ['file.write', 'filesystem', ['filesystem.write']],
+  ['file.delete', 'filesystem', ['filesystem.delete']],
+  ['patch.apply', 'git', ['repository.patch']],
+  ['search.run', 'ripgrep', ['search.text']],
+  ['git.status', 'git', ['repository.status']],
+  ['git.diff', 'git', ['repository.diff']],
+  ['git.history', 'git', ['repository.history']],
+  ['git.branch', 'git', ['repository.branch']],
+  ['git.commit', 'git', ['repository.commit']],
+  ['git.push', 'git', ['repository.push']],
+  ['git.pull', 'git', ['repository.pull']],
+  ['git.fetch', 'git', ['repository.fetch']],
+  ['git.forcePush', 'git', ['repository.forcePush']],
+  ['git.resetHard', 'git', ['repository.resetHard']],
+  ['test.run', 'test-runner', ['project.test']],
+  ['build.run', 'build-system', ['project.build']],
+  ['package.npm.install', 'npm', ['package.npm.install']],
+  ['package.composer.install', 'composer', ['package.composer.install']],
+  ['framework.artisan', 'php', ['framework.artisan']],
+  ['archive.create', 'archive', ['archive.create']],
+  ['archive.extract', 'archive', ['archive.extract']],
+  ['archive.inventory', 'archive', ['archive.inventory']],
+  ['archive.verify', 'archive', ['archive.verify']],
+  ['archive.overwrite', 'archive', ['archive.overwrite']],
+  ['scan.security', 'security-scanner', ['scan.security']],
+  ['scan.dependencies', 'dependency-scanner', ['scan.dependencies']],
+  ['vscode.openRepository', 'vscode', ['editor.openRepository']],
+  ['vscode.openFile', 'vscode', ['editor.openFile']],
+  ['vscode.openLine', 'vscode', ['editor.openLine']],
+  ['vscode.revealFile', 'vscode', ['editor.revealFile']],
+  ['vscode.openDiff', 'vscode', ['editor.openDiff']],
+  ['workflow.run', 'github-cli', ['github.workflow.run']],
+  ['release.create', 'github-cli', ['github.release.create']],
+  ['docker.runPrivileged', 'docker', ['docker.privileged']],
+  ['workspace.allow', 'bridge', ['workspace.allow']],
 ];
 
 export const COMMAND_CATALOG = Object.freeze(Object.fromEntries(
-  definitions.map(([command, riskLevel, repositoryRequired]) => [command, Object.freeze({
-    command,
-    riskLevel,
-    repositoryRequired,
+  definitions.map(([name, tool, capabilities]) => [name, Object.freeze({
+    name,
+    tool,
+    capabilities: Object.freeze([...capabilities]),
+    approvalLevel: classifyCommand(name),
+    timeoutMs: name.startsWith('build.') || name.startsWith('test.') ? 15 * 60_000 : 60_000,
   })]),
 ));
 
-export function getCommandDefinition(command) {
-  return COMMAND_CATALOG[command] || null;
+export function getCommandDefinition(name) {
+  return COMMAND_CATALOG[name] || null;
 }
 
 export function listCommandDefinitions() {
