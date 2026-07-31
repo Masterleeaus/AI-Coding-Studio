@@ -1,6 +1,7 @@
 import { classifyCommand } from '../safety/approval-policy.js';
 
 const definitions = [
+  ['system.health', 'bridge', ['system.health']],
   ['tool.detect', 'bridge', ['tool.discovery']],
   ['repo.list', 'git', ['repository.discovery']],
   ['repo.metadata', 'git', ['repository.metadata']],
@@ -43,13 +44,18 @@ const definitions = [
 ];
 
 export const COMMAND_CATALOG = Object.freeze(Object.fromEntries(
-  definitions.map(([name, tool, capabilities]) => [name, Object.freeze({
-    name,
-    tool,
-    capabilities: Object.freeze([...capabilities]),
-    approvalLevel: classifyCommand(name),
-    timeoutMs: name.startsWith('build.') || name.startsWith('test.') ? 15 * 60_000 : 60_000,
-  })]),
+  definitions.map(([name, tool, capabilities]) => {
+    const systemCommands = new Set(['tool.detect', 'system.health', 'workspace.allow']);
+    return [name, Object.freeze({
+      name,
+      tool,
+      capabilities: Object.freeze([...capabilities]),
+      approvalLevel: classifyCommand(name),
+      riskLevel: classifyCommand(name),
+      repositoryRequired: !systemCommands.has(name),
+      timeoutMs: name.startsWith('build.') || name.startsWith('test.') ? 15 * 60_000 : 60_000,
+    })];
+  }),
 ));
 
 export function getCommandDefinition(name) {

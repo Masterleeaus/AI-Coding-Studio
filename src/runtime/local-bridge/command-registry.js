@@ -5,7 +5,7 @@ import {
   isKnownCommand,
   validateBridgeRequest,
 } from './protocol.js';
-import { requiresExplicitApproval } from '../safety/approval-policy.js';
+import { requiresExplicitApproval, requiresConfirmation } from '../safety/approval-policy.js';
 import { getCommandDefinition } from './command-catalog.js';
 import { createOperationLog } from './operation-log.js';
 import { redactSecrets } from './secret-filter.js';
@@ -69,7 +69,7 @@ export function createCommandRegistry(options = {}) {
       requestId: request?.requestId ?? null,
       command: request?.command ?? null,
       repositoryId: request?.repositoryId ?? null,
-      riskLevel: definition?.riskLevel ?? null,
+      approvalLevel: definition?.approvalLevel ?? null,
       outcome,
       durationMs: Math.max(0, endedAt - startedAt),
       parameters: request?.parameters ?? {},
@@ -92,13 +92,13 @@ export function createCommandRegistry(options = {}) {
       if (definitions.has(definition.command)) {
         throw new CommandRegistryError('DUPLICATE_COMMAND', `Command is already registered: ${definition.command}`);
       }
-      if (definition.riskLevel !== undefined && definition.riskLevel !== catalogDefinition.riskLevel) {
-        throw new CommandRegistryError('RISK_LEVEL_MISMATCH', 'Command risk level cannot override the authoritative catalog.');
+      if (definition.approvalLevel !== undefined && definition.approvalLevel !== catalogDefinition.approvalLevel) {
+        throw new CommandRegistryError('APPROVAL_LEVEL_MISMATCH', 'Command approval level cannot override the authoritative catalog.');
       }
       try {
-        requiresExplicitApproval(catalogDefinition.riskLevel);
+        requiresExplicitApproval(catalogDefinition.approvalLevel);
       } catch (error) {
-        throw new CommandRegistryError('INVALID_RISK_LEVEL', error.message);
+        throw new CommandRegistryError('INVALID_APPROVAL_LEVEL', error.message);
       }
       if (typeof definition.handler !== 'function') {
         throw new CommandRegistryError('INVALID_HANDLER', 'Command handlers must be functions.');
@@ -108,7 +108,7 @@ export function createCommandRegistry(options = {}) {
       }
       definitions.set(definition.command, Object.freeze({
         command: definition.command,
-        riskLevel: catalogDefinition.riskLevel,
+        approvalLevel: catalogDefinition.approvalLevel,
         repositoryRequired: catalogDefinition.repositoryRequired,
         validateParameters: definition.validateParameters || ((parameters) => parameters),
         handler: definition.handler,
@@ -121,9 +121,9 @@ export function createCommandRegistry(options = {}) {
     },
 
     list() {
-      return [...definitions.values()].map(({ command, riskLevel, repositoryRequired }) => ({
+      return [...definitions.values()].map(({ command, approvalLevel, repositoryRequired }) => ({
         command,
-        riskLevel,
+        approvalLevel,
         repositoryRequired,
       }));
     },
@@ -190,14 +190,14 @@ export function createCommandRegistry(options = {}) {
         }
       }
 
-      let approved = !requiresExplicitApproval(definition.riskLevel);
+      let approved = !requiresConfirmation(request.command);
       if (!approved && approvalVerifier) {
         try {
           approved = await approvalVerifier(Object.freeze({
             requestId: request.requestId,
             command: request.command,
             repositoryId: request.repositoryId,
-            riskLevel: definition.riskLevel,
+            approvalLevel: definition.approvalLevel,
             approval: request.approval,
             identity,
             repository,
@@ -213,7 +213,7 @@ export function createCommandRegistry(options = {}) {
         }
       }
       if (!approved) {
-        const message = `Trusted ${definition.riskLevel} approval is required.`;
+        const message = `Trusted ${definition.approvalLevel} approval is required.`;
         appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
         return createErrorResponse(request.requestId, 'APPROVAL_REQUIRED', message);
       }
@@ -238,7 +238,7 @@ export function createCommandRegistry(options = {}) {
           command: request.command,
           repositoryId: request.repositoryId,
           parameters,
-          riskLevel: definition.riskLevel,
+          approvalLevel: definition.approvalLevel,
           identity,
           repository,
           signal: controller.signal,

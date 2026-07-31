@@ -61,4 +61,10 @@ export function requiresConfirmation(commandName, policy = {}) {
   return !autoApprove.includes(level);
 }
 
+export function requiresExplicitApproval(approvalLevel) {
+  if (!Object.values(APPROVAL_LEVELS).includes(approvalLevel)) {
+    throw new Error(`Invalid approval level: ${approvalLevel}`);
+  }
+}
+
 export { COMMAND_APPROVALS };
