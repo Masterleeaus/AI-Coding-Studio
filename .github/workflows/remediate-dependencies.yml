@@ -126,7 +126,12 @@ jobs:
         run: |
           npm run build:android
           npm run test:e2e:android
-      - name: Verify Android native target
-        run: |
-          gradle -p android --no-daemon assembleDebug --stacktrace
-          gradle -p android --no-daemon test --stacktrace
+      - name: Record Android task graph
+        working-directory: android
+        run: gradle --no-daemon tasks --all --console=plain
+      - name: Build debug APK
+        working-directory: android
+        run: gradle --no-daemon assembleDebug --stacktrace --console=plain
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle --no-daemon test --stacktrace --console=plain
