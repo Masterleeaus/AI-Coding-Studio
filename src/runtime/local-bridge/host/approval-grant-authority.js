@@ -2,7 +2,7 @@ import { createHmac, randomBytes as nodeRandomBytes, timingSafeEqual } from 'nod
 
 const GRANTABLE_RISK_LEVELS = new Set(['SAFE_EXECUTION', 'WRITE', 'DESTRUCTIVE', 'PUBLISH']);
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const SAFE_SESSION_ID = /^[A-Za-z0-9_-]{16,128}$/;
+const SAFE_SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 export class ApprovalGrantError extends Error {
   constructor(code, message) {
@@ -79,6 +79,7 @@ export function createApprovalGrantAuthority(options = {}) {
 
   const issued = new Map();
   const consumed = new Map();
+  let grantSequence = 0;
 
   function prune() {
     const now = clock();
@@ -102,9 +103,10 @@ export function createApprovalGrantAuthority(options = {}) {
       }
 
       const issuedAt = clock();
+      grantSequence += 1;
       const unsigned = {
         version: 1,
-        grantId: Buffer.from(randomBytes(18)).toString('base64url'),
+        grantId: `${Buffer.from(randomBytes(18)).toString('base64url')}.${grantSequence}`,
         ...binding,
         issuedAt,
         expiresAt: issuedAt + ttlMs,
