@@ -18,8 +18,24 @@ test('browser-safe bridge exports exclude Node-only host authorities', () => {
     'runNativeMessagingHost',
     'createProcessRunner',
     'createNativeHostManifest',
+    'getDefaultHostConfigPath',
+    'loadHostConfig',
+    'validateHostConfig',
+    'createNativeHostRuntime',
+    'startNativeHostRuntime',
+    'parseHostEntryArguments',
+    'runHostEntry',
+    'getPerUserManifestLocation',
+    'createRegistrationPlan',
+    'createUninstallPlan',
+    'inspectNativeHostInstallation',
+    'parseDoctorArguments',
     'registerReadOnlyAdapters',
   ]) {
-    assert.equal(exportName in bridge, false, `${exportName} must remain host-only`);
+    assert.equal(
+      exportName in bridge,
+      false,
+      `${exportName} must remain host-only`,
+    );
   }
 });
