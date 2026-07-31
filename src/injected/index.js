@@ -28,42 +28,42 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
   const CHAT_COMPLETION_PATH = "/api/v0/chat/completion";
 
   function getInjectedChats() {
-    try { return JSON.parse(localStorage.getItem('bds_injected_chats') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem("bds_injected_chats") || "[]"); } catch { return []; }
   }
   function addInjectedChat(id) {
     const chats = getInjectedChats();
     if (!chats.includes(id)) {
       chats.push(id);
       if (chats.length > 50) chats.shift();
-      localStorage.setItem('bds_injected_chats', JSON.stringify(chats));
+      localStorage.setItem("bds_injected_chats", JSON.stringify(chats));
     }
   }
   function getInjectedCharacters() {
-    try { return JSON.parse(localStorage.getItem('bds_injected_chars') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("bds_injected_chars") || "{}"); } catch { return {}; }
   }
   function setInjectedCharacter(id, name) {
     const chars = getInjectedCharacters();
     chars[id] = name;
     const keys = Object.keys(chars);
     if (keys.length > 50) delete chars[keys[0]];
-    localStorage.setItem('bds_injected_chars', JSON.stringify(chars));
+    localStorage.setItem("bds_injected_chars", JSON.stringify(chars));
   }
 
   function getInjectedEntries(convId) {
     try {
-      const all = JSON.parse(localStorage.getItem('bds_injected_entries') || '{}');
+      const all = JSON.parse(localStorage.getItem("bds_injected_entries") || "{}");
       return all[convId] || [];
     } catch { return []; }
   }
 
   function markEntryInjected(convId, entryId) {
     try {
-      const all = JSON.parse(localStorage.getItem('bds_injected_entries') || '{}');
+      const all = JSON.parse(localStorage.getItem("bds_injected_entries") || "{}");
       if (!all[convId]) all[convId] = [];
       if (!all[convId].includes(entryId)) all[convId].push(entryId);
       const keys = Object.keys(all);
       if (keys.length > 50) delete all[keys[0]];
-      localStorage.setItem('bds_injected_entries', JSON.stringify(all));
+      localStorage.setItem("bds_injected_entries", JSON.stringify(all));
     } catch { /* ignore */ }
   }
 
@@ -141,44 +141,6 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
   }
   window.__bdsNetworkPatched = true;
 
-  // ── Debug API: inspect/override remote config from DevTools ──
-  (function() {
-    if (window.__BDS_CONFIG__) return;
-    let reqId = 0;
-    const pending = new Map();
-
-    window.addEventListener("bds:debug-api-response", (e) => {
-      let d = e.detail;
-      if (typeof d === "string") { try { d = JSON.parse(d); } catch { return; } }
-      const cb = pending.get(d.id);
-      if (cb) { cb(d.result); pending.delete(d.id); }
-    });
-
-    function call(method) {
-      return function() {
-        const args = Array.from(arguments);
-        return new Promise((resolve) => {
-          const id = ++reqId;
-          pending.set(id, resolve);
-          window.dispatchEvent(new CustomEvent("bds:debug-api-request", {
-            detail: JSON.stringify({ id, method, args }),
-          }));
-        });
-      };
-    }
-
-    window.__BDS_CONFIG__ = {
-      raw: call("getRaw"),
-      getFlag: call("getFlag"),
-      getConfig: call("getConfig"),
-      applyRemote: call("applyRemote"),
-      replaceRemote: call("replaceRemote"),
-      resetToBuiltin: call("resetToBuiltin"),
-      detectModel: call("detectModel"),
-      toggleDebugPanel: call("toggleDebugPanel"),
-    };
-  })();
-
   // ── Listen for config updates from the content script ──
   window.addEventListener(EVENTS.configUpdate, (event) => {
     let nextConfig = event && event.detail ? event.detail : {};
@@ -204,7 +166,7 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
     }
     state.config.deepResearch = normalizeDeepResearch(nextConfig || {});
   });
-  
+
   window.addEventListener(EVENTS.markVoiceMessage, () => {
     state.isNextVoiceMessage = true;
   });
@@ -221,7 +183,7 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
     const url = `${HISTORY_MSGS_URL}?chat_session_id=${encodeURIComponent(sessionId)}`;
     const headers = { "Content-Type": "application/json" };
     if (state.authToken) {
-      headers["Authorization"] = `Bearer ${state.authToken}`;
+      headers.Authorization = `Bearer ${state.authToken}`;
     }
 
     try {
@@ -255,8 +217,11 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
   }
 
   function isChatCompletionUrl(url) {
-    const s = String(url || "");
-    return s.includes("/api/v0/chat/completion") || s.includes("/api/v0/chat/edit_message") || s.includes(SESSION_FETCH_URL) || s.includes(HISTORY_MSGS_URL);
+    const value = String(url || "");
+    return value.includes("/api/v0/chat/completion") ||
+      value.includes("/api/v0/chat/edit_message") ||
+      value.includes(SESSION_FETCH_URL) ||
+      value.includes(HISTORY_MSGS_URL);
   }
 
   function emitNetworkState(status, url) {
@@ -266,7 +231,7 @@ import { patchXmlHttpRequest } from "./xhr-patch.js";
       activeCompletionRequests: state.activeCompletionRequests,
       timestamp: Date.now(),
     };
-    
+
     window.dispatchEvent(
       new CustomEvent(EVENTS.networkState, {
         // Stringify detail to cross the boundary in Firefox
