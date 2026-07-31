@@ -3,7 +3,9 @@
   "name": "AI Coding Studio",
   "version": "2.1.0",
   "description": "Integrated AI development platform with multi-provider support (Claude, ChatGPT, DeepSeek). Features: tool/terminal execution, context budgeting, auto-continuation, prompt library, smart memory, MCP protocol, code automation, and more. 29 fully integrated modules with 150+ features.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://claude.ai/*",
     "https://chatgpt.com/*",
@@ -24,14 +26,23 @@
         "https://chat.openai.com/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "sandbox.html", "sandbox.js", "static/loading/*.svg"],
+      "resources": [
+        "injected.js",
+        "sandbox.html",
+        "sandbox.js",
+        "static/loading/*.svg"
+      ],
       "matches": [
         "https://claude.ai/*",
         "https://chatgpt.com/*",
@@ -45,7 +56,9 @@
     "service_worker": "background.js"
   },
   "sandbox": {
-    "pages": ["sandbox.html"]
+    "pages": [
+      "sandbox.html"
+    ]
   },
   "action": {
     "default_title": "AI Coding Studio - Multi-Platform AI Development"

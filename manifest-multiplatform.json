@@ -1,16 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Better AI Assistant",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Enhanced AI chat for Claude, ChatGPT, and DeepSeek with browser automation, memory, commands, and productivity tools.",
-  
   "permissions": [
     "storage",
     "tabs",
     "scripting",
     "activeTab"
   ],
-
   "host_permissions": [
     "https://claude.ai/*",
     "https://chatgpt.com/*",
@@ -18,7 +16,6 @@
     "https://chat.openai.com/*",
     "https://chat.deepseek.com/*"
   ],
-
   "content_scripts": [
     {
       "matches": [
@@ -28,15 +25,23 @@
         "https://chat.openai.com/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_start"
     }
   ],
-
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "sandbox.html", "sandbox.js", "static/loading/*.svg"],
+      "resources": [
+        "injected.js",
+        "sandbox.html",
+        "sandbox.js",
+        "static/loading/*.svg"
+      ],
       "matches": [
         "https://claude.ai/*",
         "https://chatgpt.com/*",
@@ -46,19 +51,17 @@
       ]
     }
   ],
-
   "background": {
     "service_worker": "background.js"
   },
-
   "sandbox": {
-    "pages": ["sandbox.html"]
+    "pages": [
+      "sandbox.html"
+    ]
   },
-
   "action": {
     "default_title": "Better AI Assistant"
   },
-
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'",
     "sandbox": "sandbox allow-scripts allow-forms allow-popups; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; object-src 'self'"
