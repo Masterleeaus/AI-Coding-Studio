@@ -10,7 +10,6 @@ export {
   validateBridgeRequest,
 } from './protocol.js';
 export { COMMAND_CATALOG, getCommandDefinition, listCommandDefinitions } from './command-catalog.js';
-export { RepositoryPathError, resolveRepositoryPath } from './path-policy.js';
 export { REDACTED, redactSecrets } from './secret-filter.js';
 export { createOperationLog } from './operation-log.js';
 export { isRiskApproved, requiresExplicitApproval } from '../safety/approval-policy.js';
