@@ -5,7 +5,7 @@ import {
   isKnownCommand,
   validateBridgeRequest,
 } from './protocol.js';
-import { isRiskApproved, requiresExplicitApproval } from '../safety/approval-policy.js';
+import { requiresExplicitApproval } from '../safety/approval-policy.js';
 import { getCommandDefinition } from './command-catalog.js';
 import { createOperationLog } from './operation-log.js';
 import { redactSecrets } from './secret-filter.js';
@@ -38,11 +38,15 @@ export function createCommandRegistry(options = {}) {
   const clock = typeof options.clock === 'function' ? options.clock : Date.now;
   const timeoutMs = options.timeoutMs === undefined ? 30000 : options.timeoutMs;
   const maxResultBytes = options.maxResultBytes === undefined ? 1000000 : options.maxResultBytes;
+  const approvalVerifier = options.approvalVerifier === undefined ? null : options.approvalVerifier;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000) {
     throw new RangeError('timeoutMs must be an integer between 1 and 300000.');
   }
   if (!Number.isInteger(maxResultBytes) || maxResultBytes < 1 || maxResultBytes > 100000000) {
     throw new RangeError('maxResultBytes must be an integer between 1 and 100000000.');
+  }
+  if (approvalVerifier !== null && typeof approvalVerifier !== 'function') {
+    throw new TypeError('approvalVerifier must be a function when provided.');
   }
 
   function appendLog({ request, definition, startedAt, outcome, error }) {
@@ -139,8 +143,24 @@ export function createCommandRegistry(options = {}) {
         return createErrorResponse(request.requestId, 'REPOSITORY_REQUIRED', message);
       }
 
-      if (!isRiskApproved(definition.riskLevel, request.approval)) {
-        const message = `Explicit ${definition.riskLevel} approval is required.`;
+      let approved = !requiresExplicitApproval(definition.riskLevel);
+      if (!approved && approvalVerifier) {
+        try {
+          approved = await approvalVerifier(Object.freeze({
+            requestId: request.requestId,
+            command: request.command,
+            repositoryId: request.repositoryId,
+            riskLevel: definition.riskLevel,
+            approval: request.approval,
+          })) === true;
+        } catch (error) {
+          const message = safeErrorMessage(error);
+          appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
+          return createErrorResponse(request.requestId, 'APPROVAL_VERIFICATION_FAILED', 'Approval verification failed.');
+        }
+      }
+      if (!approved) {
+        const message = `Trusted ${definition.riskLevel} approval is required.`;
         appendLog({ request, definition, startedAt, outcome: 'denied', error: message });
         return createErrorResponse(request.requestId, 'APPROVAL_REQUIRED', message);
       }
