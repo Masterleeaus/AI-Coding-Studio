@@ -8,9 +8,6 @@ on:
   push:
     branches:
       - integration/local-first-repair
-      - agent-1/**
-      - agent-2/**
-      - agent-3/**
   workflow_dispatch:
 
 permissions:
@@ -21,6 +18,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan committed history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   contracts-and-locales:
     name: Contracts and locales
     runs-on: ubuntu-latest
