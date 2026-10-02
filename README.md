@@ -4,6 +4,13 @@
 
 **A local-first AI development workstation that connects conversational models to governed repository analysis, code-generation and verification workflows.**
 
+## Product architecture and engineering highlights
+
+A local-first AI developer workstation that connects browser-based conversations to controlled repository analysis and coding workflows.
+
+- **Architecture:** A browser extension talks to a local runtime/bridge, which exposes repository context through a tool registry, workflow contracts, approval policy, and verification steps.
+- **Distinctive engineering:** Its core design choice is to keep the model outside the trust boundary: repository reads and changes are mediated by local authority checks, explicit approvals, and observable execution.
+
 ## Overview
 
 AI Coding Studio explores a practical boundary between browser-based AI and a developer's local workspace. The browser extension provides the conversational surface, while the runtime layer defines explicit contracts for repository access, tools, approvals and workflows.
