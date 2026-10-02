@@ -1,3 +1,5 @@
+![AI Coding Studio — LOCAL-FIRST DEVELOPER WORKSPACE](docs/images/portfolio-banner.svg)
+
 # AI Coding Studio
 
 **A local-first AI development workstation that connects conversational models to governed repository analysis, code-generation and verification workflows.**
