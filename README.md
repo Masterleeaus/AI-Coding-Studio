@@ -129,7 +129,6 @@ The test uses the checked-in [`tests/fixtures/recruiter-repository`](tests/fixtu
 
 This is focused contract evidence, not a live browser/provider or production-readiness claim. The broader unit, Chrome, Firefox and Android lanes remain separate; see [`TESTING.md`](TESTING.md) and current workflow results for their scope.
 
-
 ## Repository Structure
 
 ```text
