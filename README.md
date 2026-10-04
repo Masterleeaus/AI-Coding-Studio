@@ -2,14 +2,18 @@
 
 # AI Coding Studio
 
-**A local-first AI development workstation that connects conversational models to governed repository analysis, code-generation and verification workflows.**
+**AI Coding Studio is a local-first AI developer workstation that turns browser conversations into governed repository work—from context and code proposals to explicit approval and verification.**
 
-## Product architecture and engineering highlights
+For developers who want the speed of browser-based AI with a clear local control plane, AI Coding Studio connects a Chrome/Firefox extension and Android WebView target to a Node.js runtime that makes repository access, tool capabilities, workflow state and approvals explicit, inspectable and testable.
 
-A local-first AI developer workstation that connects browser-based conversations to controlled repository analysis and coding workflows.
+### Why it stands out
 
-- **Architecture:** A browser extension talks to a local runtime/bridge, which exposes repository context through a tool registry, workflow contracts, approval policy, and verification steps.
-- **Distinctive engineering:** Its core design choice is to keep the model outside the trust boundary: repository reads and changes are mediated by local authority checks, explicit approvals, and observable execution.
+- **Repository-aware development:** repository and folder ingestion gives model conversations project-level context instead of isolated snippets.
+- **Local authority for AI actions:** the runtime kernel, tool registry, workflow contracts and approval engine turn proposed work into structured, reviewable operations.
+- **One architecture, multiple surfaces:** the same governed runtime supports Chrome, Firefox and Android-oriented delivery targets.
+- **Verification is part of the loop:** build, test and verification results are returned as workflow evidence rather than treated as an afterthought.
+
+The architecture follows a deliberate control path: browser or Android interface → repository ingestion → runtime kernel → workflow and tool registries → approval policy → authenticated Local Bridge → local repository and verification. The model can propose work; local code decides which capabilities are available and when an operation may proceed.
 
 ## Overview
 
