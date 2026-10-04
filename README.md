@@ -97,6 +97,8 @@ The repository contains dedicated architecture checks and tests for command cont
 ```bash
 npm install
 npm run build
+npm run check:architecture
+npm run check:imports
 npm run test:architecture
 ```
 
@@ -107,6 +109,12 @@ npm run dev
 ```
 
 The build scripts also expose `build:chrome`, `build:firefox` and `build:android` targets.
+
+## Evidence and limitations
+
+The smallest useful local gate is `npm run test:architecture`, paired with `npm run check:architecture` and `npm run check:imports`. The broader commands are documented in [`TESTING.md`](TESTING.md): unit coverage, Chromium startup smoke, Firefox temporary-install smoke, Android WebView smoke, and Gradle tests are separate evidence lanes.
+
+A passing build or extension-startup smoke test does not establish provider DOM compatibility, authenticated model behavior, Android release readiness, or production readiness. The repository is explicitly **in development**; use the current workflow results and the coordination record in [`docs/agents/coordination.md`](docs/agents/coordination.md) when evaluating integration status.
 
 ## Repository Structure
 
