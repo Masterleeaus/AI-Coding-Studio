@@ -204,7 +204,7 @@ export function normalizePageFetchRequest(input, options = {}) {
   }
 
   if (safeOptions.body !== undefined && safeOptions.body !== null) {
-    throw new Error("Page fetch request bodies are not permitted.");
+    throw new Error("Page fetch request body is not permitted.");
   }
 
   return {
