@@ -4,7 +4,52 @@
 
 **AI Coding Studio brings repository context, persistent project instructions and rich generated artifacts into browser-based AI work. Its local-runtime foundation adds explicit tool contracts, approval policies and verification state for controlled development workflows.**
 
+## Overview
+
 The project combines Chrome and Firefox extension builds, an Android WebView target and a governed Node.js runtime foundation. The conversational surfaces and local-runtime contracts are developed together, while live local-repository execution remains a separately configured host and bridge integration boundary.
+
+
+## Measured evidence
+
+The strongest reproducible portfolio path is a **provider-free governed coding contract demo** built from checked-in fixtures and the real repository/runtime approval contracts.
+
+| Evidence | Current scope | Reproduce |
+| --- | --- | --- |
+| Recruiter workflow demo | repository metadata → write-risk proposal → exact approval → non-mutating patch request → deterministic verification → completed workflow | `npm run test:unit -- tests/recruiter-browser-first-demo.test.js` |
+| Runtime architecture lane | 7 focused Node test files covering command results, approval policy, local bridge, tool registry, repository runtime, workflow registry and runtime kernel | `npm run test:architecture` |
+| Architecture/import gates | static runtime-boundary and import checks | `npm run check:architecture && npm run check:imports` |
+| Cross-browser build surface | Chrome + Firefox build targets | `npm run build` |
+| Android target | build, WebView smoke and Gradle lanes exist separately | see `.github/workflows/android-verify.yml` |
+
+The recruiter demo intentionally **does not mutate files, call a live model, or use credentials**. Its bridge stub records the approved `patch.apply` request and returns a deterministic `node --test` result. That makes it contract evidence, not a claim of autonomous coding performance.
+
+## What is new
+
+AI Coding Studio's technical signature is the separation of **repository context, model proposal, tool capability, approval, execution bridge and verification state**.
+
+```text
+Repository context
+      ↓
+Structured workflow
+      ↓
+Registered tool capability
+      ↓
+Risk / approval decision
+      ↓
+Configured local bridge
+      ↓
+Build / test verification
+      ↓
+Workflow evidence
+```
+
+Distinctive implementation choices:
+
+- **Approval is consumable state** rather than a conversational convention.
+- **Repository operations are explicit tool contracts** instead of arbitrary model-side file access.
+- **Verification is part of workflow state**, not merely a post-hoc terminal message.
+- **Browser and Android surfaces share a governed runtime direction** while host execution remains a separate integration boundary.
+- **Credential-free fixture testing** allows the control plane to be exercised independently of provider quality.
 
 ## Get started
 
@@ -41,7 +86,7 @@ npm run test:unit -- tests/recruiter-browser-first-demo.test.js
 
 The demo uses the checked-in [tests/fixtures/recruiter-repository](tests/fixtures/recruiter-repository) and the real repository-runtime, workflow-state and approval contracts. Its bridge stub returns fixture metadata, records the reviewed `patch.apply` request without mutating files, and returns a deterministic `node --test` verification result.
 
-## Why it is interesting
+## Verified capabilities
 
 - **Repository-aware AI work:** repository and folder ingestion, persistent project instructions and memory-oriented context features give conversations project-level context instead of isolated snippets.
 - **Useful generated artifacts:** the codebase includes document-oriented output paths for HTML previews, DOCX, XLSX and PPTX artifacts alongside the conversational interface.
