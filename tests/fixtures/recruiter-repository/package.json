@@ -1,0 +1,8 @@
+{
+  "name": "ai-coding-studio-recruiter-fixture",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "verify": "node --test"
+  }
+}
