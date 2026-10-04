@@ -1,4 +1,4 @@
-![AI Coding Studio — LOCAL-FIRST DEVELOPER WORKSPACE](docs/images/portfolio-banner.svg)
+![AI Coding Studio — LOCAL-FIRST DEVELOPER WORKSPACE](docs/images/ai-coding-studio-banner.svg)
 
 # AI Coding Studio
 
@@ -50,6 +50,10 @@ The demo uses the checked-in [tests/fixtures/recruiter-repository](tests/fixture
 - **Verification state as a workflow concern:** build, test and verification results are represented as workflow evidence rather than being treated as an afterthought.
 
 ## Architecture
+
+<p align="center">
+  <img src="docs/images/ai-coding-studio-architecture.svg" alt="AI Coding Studio flow from browser and Android interface through repository context, runtime kernel, workflow and tool registries, approval policy, local bridge, and verification" width="100%" />
+</p>
 
 ```mermaid
 flowchart LR
