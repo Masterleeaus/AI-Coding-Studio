@@ -116,6 +116,19 @@ The smallest useful local gate is `npm run test:architecture`, paired with `npm 
 
 A passing build or extension-startup smoke test does not establish provider DOM compatibility, authenticated model behavior, Android release readiness, or production readiness. The repository is explicitly **in development**; use the current workflow results and the coordination record in [`docs/agents/coordination.md`](docs/agents/coordination.md) when evaluating integration status.
 
+### Fixture-based recruiter lane
+
+Run the bounded repository-analysis → approved-operation → verification demo with:
+
+```bash
+npm ci
+npm run test:unit -- tests/recruiter-browser-first-demo.test.js
+```
+
+The test uses the checked-in [`tests/fixtures/recruiter-repository`](tests/fixtures/recruiter-repository) and the real `RepositoryRuntime`, workflow-state machine and one-shot approval engine. A stub Local Bridge returns fixture metadata, records the reviewed `patch.apply` request without mutating files, then returns a deterministic `node --test` verification result. The test proves that a write is not auto-approved, an exact approval is required and consumed, the workflow reaches `COMPLETED` only after verification, and the model/provider lane remains separately marked as not invoked.
+
+This is focused contract evidence, not a live browser/provider or production-readiness claim. The broader unit, Chrome, Firefox and Android lanes remain separate; see [`TESTING.md`](TESTING.md) and current workflow results for their scope.
+
 ## Repository Structure
 
 ```text
