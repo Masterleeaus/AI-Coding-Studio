@@ -1,4 +1,4 @@
-![AI Coding Studio — LOCAL-FIRST DEVELOPER WORKSPACE](docs/images/portfolio-banner.svg)
+![AI Coding Studio — LOCAL-FIRST DEVELOPER WORKSPACE](docs/images/ai-coding-studio-banner.svg)
 
 # AI Coding Studio
 
@@ -32,6 +32,10 @@ The project is technically interesting because model output is not treated as tr
 - Unit, architecture, browser E2E and Android-oriented test targets.
 
 ## Architecture
+
+<p align="center">
+  <img src="docs/images/ai-coding-studio-architecture.svg" alt="AI Coding Studio flow from browser and Android interface through repository context, runtime kernel, workflow and tool registries, approval policy, local bridge, and verification" width="100%" />
+</p>
 
 ```mermaid
 flowchart LR
