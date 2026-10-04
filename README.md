@@ -16,30 +16,30 @@ The project combines Chrome and Firefox extension builds, an Android WebView tar
 
 Install dependencies and run the smallest useful architecture gates:
 
-\`\`\`bash
+```bash
 npm ci
 npm run build
 npm run check:architecture
 npm run check:imports
 npm run test:architecture
-\`\`\`
+```
 
 For a development build:
 
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
-Target-specific builds include \`build:chrome\`, \`build:firefox\` and \`build:android\`.
+Target-specific builds include `build:chrome`, `build:firefox` and `build:android`.
 
 For a bounded recruiter-facing contract demo:
 
-\`\`\`bash
+```bash
 npm ci
 npm run test:unit -- tests/recruiter-browser-first-demo.test.js
-\`\`\`
+```
 
-The demo uses the checked-in [tests/fixtures/recruiter-repository](tests/fixtures/recruiter-repository) and the real repository-runtime, workflow-state and approval contracts. Its bridge stub returns fixture metadata, records the reviewed \`patch.apply\` request without mutating files, and returns a deterministic \`node --test\` verification result.
+The demo uses the checked-in [tests/fixtures/recruiter-repository](tests/fixtures/recruiter-repository) and the real repository-runtime, workflow-state and approval contracts. Its bridge stub returns fixture metadata, records the reviewed `patch.apply` request without mutating files, and returns a deterministic `node --test` verification result.
 
 ## Why it is interesting
 
@@ -51,7 +51,7 @@ The demo uses the checked-in [tests/fixtures/recruiter-repository](tests/fixture
 
 ## Architecture
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     U[Developer] --> UI[Browser / Android AI Surface]
     UI --> C[Context + Repository Ingestion]
@@ -64,7 +64,7 @@ flowchart LR
     B --> R[Local Repository / Development Tools]
     R --> V[Build + Test + Verification]
     V --> UI
-\`\`\`
+```
 
 The design separates **reasoning** from **authority**. A model can propose work, but local capabilities remain bounded by registered tools and approval rules. The Local Bridge and host integration are not implied to be available merely because a browser or Android target is built; they require the corresponding local configuration.
 
@@ -92,7 +92,7 @@ The design separates **reasoning** from **authority**. A model can propose work,
 
 ## Evidence and limitations
 
-The focused recruiter lane proves a bounded contract path: repository analysis → reviewed \`patch.apply\` proposal → exact approval consumption → completed workflow after deterministic verification. It deliberately stubs patch application and test execution, and does not invoke a live model/provider or claim a connected autonomous coding agent.
+The focused recruiter lane proves a bounded contract path: repository analysis → reviewed `patch.apply` proposal → exact approval consumption → completed workflow after deterministic verification. It deliberately stubs patch application and test execution, and does not invoke a live model/provider or claim a connected autonomous coding agent.
 
 The broader commands are documented in [TESTING.md](TESTING.md): unit coverage, Chromium startup smoke, Firefox temporary-install smoke, Android WebView smoke and Gradle tests are separate evidence lanes. A passing build or extension-startup smoke test does not establish provider DOM compatibility, authenticated model behavior, Android release readiness, or production readiness.
 
@@ -100,16 +100,16 @@ The repository is **in development**. Use current workflow results and the coord
 
 ## Repository structure
 
-\`\`\`text
+```text
 src/                 Extension and runtime source
 src/runtime/         Local runtime, repository, tools, safety and workflows
 src/workflows/       Structured AI workflow contracts
 static/              Extension static assets and manifests
-scripts/              Build, validation and architecture utilities
+scripts/             Build, validation and architecture utilities
 tests/               Unit/integration/E2E test support
 android/             Android WebView application target
 docs/architecture/   Architecture decisions and runtime design
-\`\`\`
+```
 
 ## Status
 
